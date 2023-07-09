@@ -13,10 +13,9 @@ from langchain.cache import InMemoryCache, SQLiteCache
 from bs4 import BeautifulSoup
 
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"] 
-PINECONE_API_KEY = os.environ["PINECONE_API_KEY"]
 
 how_it_work = """\
-TBD
+Insert URL here and check output. Only one URL supported now.
 """
 
 translation_prompt_template = """/
