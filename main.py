@@ -15,12 +15,13 @@ Insert URL here and check output. Only one URL supported now.
 """
 
 translation_prompt_template = """/
-You are the best English translator. Please translate provided article into English.
+You are the best English translator. Please translate provided article (delimited with XML tags) into English.
 Please provide result in JSON format with fields:
 - lang (language of original article)
 - translated (translated article)
 Be sure that result is real JSON.
-Article: {article}
+
+<article>{article}</article>
 """
 
 
@@ -82,6 +83,7 @@ def load_html(url):
 
 
 def get_json(text):
+    #text = text.replace(", ]", "]").replace(",]", "]")
     open_bracket = text.find('[')
     if open_bracket == -1:
         open_bracket = text.find('{')
@@ -185,7 +187,7 @@ if input_url:
 
             try:
                 debug_container.markdown('Extract result...')
-                extracted_score_json = json.loads(f'{extracted_score}')
+                extracted_score_json = json.loads(extracted_score)
                 debug_container.markdown(f'')
             
                 for t in extracted_score_json:
@@ -198,7 +200,7 @@ if input_url:
                         result_score[topic_name] = [new_score, t["Explanation"]]
 
             except Exception as error:
-                output_container.markdown(f'Error JSON: {extracted_score}. Error: {error}\n{traceback.format_exc()}', unsafe_allow_html=True)
+                output_container.markdown(f'Error JSON:\n\n{extracted_score}.\n\nError: {error}\n\n{traceback.format_exc()}', unsafe_allow_html=True)
         
     result_list = []
     for s in result_score.keys():
