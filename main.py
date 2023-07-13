@@ -83,7 +83,7 @@ def load_html(url):
 
 
 def get_json(text):
-    #text = text.replace(", ]", "]").replace(",]", "]")
+    text = text.replace(", ]", "]").replace(",]", "]").replace(",\n]", "]")
     open_bracket = text.find('[')
     if open_bracket == -1:
         open_bracket = text.find('{')
@@ -184,10 +184,10 @@ if input_url:
             extracted_score = llm_score(score_prompt.format(topics = topics_for_prompt, article = p))
             extracted_score = get_json(extracted_score)
             debug_container.markdown(f'Done. Got {len(extracted_score)} chars.')
-
+            
             try:
                 debug_container.markdown('Extract result...')
-                extracted_score_json = json.loads(extracted_score)
+                extracted_score_json = json.loads(get_json(extracted_score))
                 debug_container.markdown(f'')
             
                 for t in extracted_score_json:
@@ -200,7 +200,7 @@ if input_url:
                         result_score[topic_name] = [new_score, t["Explanation"]]
 
             except Exception as error:
-                output_container.markdown(f'Error JSON:\n\n{extracted_score}.\n\nError: {error}\n\n{traceback.format_exc()}', unsafe_allow_html=True)
+                output_container.markdown(f'Error JSON:\n\n{extracted_score}\n\nError: {error}\n\n{traceback.format_exc()}', unsafe_allow_html=True)
         
     result_list = []
     for s in result_score.keys():
