@@ -26,8 +26,8 @@ Article: {article}
 
 score_prompt_template = """/
 You are text classification machine. 
-You have list of topics:
-[{topics}]
+You have numerated list of topics:
+{topics}
 
 You task is to check if each topic is relevant to the provided article (delimited with XML tags) and explain why.
 Think about it step by step.
@@ -37,37 +37,40 @@ Provide as much arguments as possible why article is related or not to the topic
 When article can be considered as related to the topic, but does not provide any information - reduce score.
 Validate all provided topics one by one.
 
-Provide your output in json format with the keys: Topic, Score, Explanation.
+Provide your output in json format with the keys: TopicID, Topic, Score, Explanation.
 
 Example output:
 [
-{{"Topic": "Tobacco Harm reduction", "Score": 0.5, "Explanation": "some text here"}},
-{{"Topic": "Tobaco science", "Score": 0, "Explanation": "some text here"}},
+{{"TopicID": 1, "Topic": "Tobacco Harm reduction", "Score": 0.5, "Explanation": "some text here"}},
+{{"TopicID": 2, "Topic": "Tobaco science", "Score": 0, "Explanation": "some text here"}},
 ]
 
 <article>{article}</article>
 """
 
 TOPICS_LIST = [
-  ["Tobacco Harm reduction", ""], 
-  ["Tobacco multi-product approach",  ""],
-  ["Inclusion, Diversity",  ""],
-  ["Leadership content", "Leadership, strategies, interviews, communication, team management"],
-  ["Investor Relations",  ""],
-  ["Tobaco science",  ""],
-  ["Smoke-free vision",  ""],
-  ["Wellness, Healthcare, Health", ""]
+  [1, "Tobacco Harm reduction", ""], 
+  [2, "Tobacco multi-product approach",  ""],
+  [3, "Inclusion, Diversity",  ""],
+  [4, "Leadership content", "Leadership, strategies, interviews, communication, team management"],
+  [5, "Investor Relations",  ""],
+  [6, "Tobacco science",  ""],
+  [7, "Smoke-free vision",  ""],
+  [8, "Wellness, Healthcare, Health", ""]
 ]
 
 st.set_page_config(page_title="PMI Topics Demo", page_icon=":robot:")
 st.title('PMI Topics Demo')
 
-header_container   = st.container()
-input_container    = st.container()
-debug_container    = st.empty()
-org_text_container = st.expander(label="Original Text")
-text_container     = st.expander(label="Extracted (and translated) Text")
-output_container   = st.container()
+tab_one, tab_bulk = st.tabs(["Process one URL", "Bulk processing"])
+
+with tab_one:
+    header_container   = st.container()
+    input_container    = st.container()
+    debug_container    = st.empty()
+    org_text_container = st.expander(label="Original Text")
+    text_container     = st.expander(label="Extracted (and translated) Text")
+    output_container   = st.container()
 
 header_container.markdown(how_it_work, unsafe_allow_html=True)
 
@@ -172,11 +175,11 @@ if input_url:
     
     for i, p in enumerate(translated_list):
         for j, topic_def in enumerate(topic_chunks):
-            topics = [t[1] if len(t[1])>0 else t[0] for t in topic_def]
-            topics_id_list = {t[1] if len(t[1])>0 else t[0]:t[0] for t in topic_def}
+            topics_for_prompt = "\n".join([f'{t[0]}. {t[2]}' if len(t[2])>0 else f'{t[0]}. {t[1]}' for t in topic_def])
+            topics_id_name_list = {t[0]:t[1] for t in topic_def}
 
             debug_container.markdown(f'Request LLM to score {i+1}/{len(translated_list)}, topics chunk {j+1}/{len(topic_chunks)}...')
-            extracted_score = llm_score(score_prompt.format(topics = topics, article = p))
+            extracted_score = llm_score(score_prompt.format(topics = topics_for_prompt, article = p))
             extracted_score = get_json(extracted_score)
             debug_container.markdown(f'Done. Got {len(extracted_score)} chars.')
 
@@ -187,12 +190,12 @@ if input_url:
             
                 for t in extracted_score_json:
                     current_score = 0
-                    topics_id = topics_id_list[t["Topic"]]
-                    if topics_id in result_score:
-                        current_score = result_score[topics_id][0]
+                    topic_name = topics_id_name_list[t["TopicID"]]
+                    if topic_name in result_score:
+                        current_score = result_score[topic_name][0]
                     new_score = t["Score"]
                     if (new_score > current_score) or (current_score == 0):
-                        result_score[topics_id] = [new_score, t["Explanation"]]
+                        result_score[topic_name] = [new_score, t["Explanation"]]
 
             except Exception as error:
                 output_container.markdown(f'Error JSON: {extracted_score}. Error: {error}\n{traceback.format_exc()}', unsafe_allow_html=True)
