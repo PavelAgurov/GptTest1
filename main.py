@@ -5,6 +5,8 @@ import streamlit as st
 import langchain
 from langchain import PromptTemplate
 from langchain.llms import OpenAI
+from langchain.chat_models import ChatOpenAI
+from langchain.chains import LLMChain
 from langchain.cache import SQLiteCache
 import traceback
 
@@ -113,7 +115,7 @@ else:
 langchain.llm_cache = SQLiteCache()
 
 llm_score = OpenAI(model_name = "text-davinci-003", openai_api_key = LLM_OPENAI_API_KEY, max_tokens = 2000)
-llm_trans = OpenAI(model_name = "gpt-3.5-turbo"   , openai_api_key = LLM_OPENAI_API_KEY, max_tokens = 2000)
+llm_trans = ChatOpenAI(model_name = "gpt-3.5-turbo", openai_api_key = LLM_OPENAI_API_KEY, max_tokens = 2000)
 
 score_prompt = PromptTemplate.from_template(score_prompt_template)
 translation_prompt= PromptTemplate.from_template(translation_prompt_template)
@@ -160,7 +162,8 @@ if input_url:
     no_translation = False
     for i, p in enumerate(paragpaph_list):
         debug_container.markdown(f'Request LLM for translation {i+1}/{len(paragpaph_list)}...')
-        translated_text = llm_trans(translation_prompt.format(article = p))
+        translation_chain  = LLMChain(llm=llm_trans, prompt = translation_prompt)
+        translated_text = translation_chain.run(article = p)
         try:
             translated_text_json = json.loads(get_json(translated_text))
             translated_lang = translated_text_json["lang"]
