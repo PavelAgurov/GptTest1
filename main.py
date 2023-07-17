@@ -8,10 +8,9 @@ from langchain.llms import OpenAI
 from langchain.cache import SQLiteCache
 import traceback
 
-OPENAI_API_KEY = os.environ["OPENAI_API_KEY"] 
-
 how_it_work = """\
-Insert URL here and check output. Only one URL supported now.
+First please put your openAPI key into settings.
+Then insert URL here and check output. Only one URL supported now.
 """
 
 translation_prompt_template = """/
@@ -63,7 +62,7 @@ TOPICS_LIST = [
 st.set_page_config(page_title="PMI Topics Demo", page_icon=":robot:")
 st.title('PMI Topics Demo')
 
-tab_one, tab_bulk = st.tabs(["Process one URL", "Bulk processing"])
+tab_one, tab_bulk, tab_apikey = st.tabs(["Process one URL", "Bulk processing", "Settings"])
 
 with tab_one:
     header_container   = st.container()
@@ -73,6 +72,10 @@ with tab_one:
     text_container     = st.expander(label="Extracted (and translated) Text")
     output_container   = st.container()
 
+with tab_apikey:
+    key_header_container   = st.container()
+    open_api_key = key_header_container.text_input("OpenAPI Key: ", "", key="open_api_key")
+
 header_container.markdown(how_it_work, unsafe_allow_html=True)
 
 from unstructured.partition.html import partition_html
@@ -80,7 +83,6 @@ from unstructured.partition.html import partition_html
 def load_html(url):
   elements = partition_html(url=url)
   return "\n\n".join([str(el) for el in elements])
-
 
 def get_json(text):
     text = text.replace(", ]", "]").replace(",]", "]").replace(",\n]", "]")
@@ -103,11 +105,15 @@ def grouper(iterable, step):
         result.append(iterable[i:i+step])
     return result
 
+if open_api_key:
+    LLM_OPENAI_API_KEY = open_api_key
+else:
+    LLM_OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
+
 langchain.llm_cache = SQLiteCache()
 
-llm_score = OpenAI(model_name = "text-davinci-003", max_tokens = 2000)
-llm_trans = OpenAI(model_name = "gpt-3.5-turbo"   , max_tokens = 2000)
-
+llm_score = OpenAI(model_name = "text-davinci-003", openai_api_key = LLM_OPENAI_API_KEY, max_tokens = 2000)
+llm_trans = OpenAI(model_name = "gpt-3.5-turbo"   , openai_api_key = LLM_OPENAI_API_KEY, max_tokens = 2000)
 
 score_prompt = PromptTemplate.from_template(score_prompt_template)
 translation_prompt= PromptTemplate.from_template(translation_prompt_template)
