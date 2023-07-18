@@ -32,10 +32,11 @@ You have numerated list of topics:
 {topics}
 
 You task is to check if each topic is relevant to the provided article (delimited with XML tags) and explain why.
-Think about it step by step.
+Think about it step by step. 
 Also add score of relevance from 0 to 1 (0 - not relevant, 1 - fully relevant).
 When possible you should include parts of original text to make explanation more clear.
 Provide as much arguments as possible why article is related or not to the topic.
+Be very scrupulous when you do classification.
 When article can be considered as related to the topic, but does not provide any information - reduce score.
 Validate all provided topics one by one.
 
@@ -114,7 +115,7 @@ else:
 
 langchain.llm_cache = SQLiteCache()
 
-llm_score = OpenAI(model_name = "text-davinci-003", openai_api_key = LLM_OPENAI_API_KEY, max_tokens = 2000)
+llm_score = ChatOpenAI(model_name = "gpt-3.5-turbo", openai_api_key = LLM_OPENAI_API_KEY, max_tokens = 2000)
 llm_trans = ChatOpenAI(model_name = "gpt-3.5-turbo", openai_api_key = LLM_OPENAI_API_KEY, max_tokens = 2000)
 
 score_prompt = PromptTemplate.from_template(score_prompt_template)
@@ -190,8 +191,8 @@ if input_url:
             topics_id_name_list = {t[0]:t[1] for t in topic_def}
 
             debug_container.markdown(f'Request LLM to score {i+1}/{len(translated_list)}, topics chunk {j+1}/{len(topic_chunks)}...')
-            extracted_score = llm_score(score_prompt.format(topics = topics_for_prompt, article = p))
-            extracted_score = get_json(extracted_score)
+            score_chain  = LLMChain(llm=llm_score, prompt = score_prompt)
+            extracted_score = score_chain.run(topics = topics_for_prompt, article = p)
             debug_container.markdown(f'Done. Got {len(extracted_score)} chars.')
             
             try:
