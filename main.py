@@ -4,11 +4,14 @@ import os
 import streamlit as st
 import langchain
 from langchain import PromptTemplate
-from langchain.llms import OpenAI
 from langchain.chat_models import ChatOpenAI
 from langchain.chains import LLMChain
 from langchain.cache import SQLiteCache
 import traceback
+from langchain.callbacks import get_openai_callback
+
+MODEL_NAME = "gpt-3.5-turbo"
+COST_1K = 0.002
 
 how_it_work = """\
 First please put your openAPI key into settings.
@@ -71,6 +74,7 @@ with tab_one:
     header_container   = st.container()
     input_container    = st.container()
     debug_container    = st.empty()
+    token_container    = st.empty()
     org_text_container = st.expander(label="Original Text")
     text_container     = st.expander(label="Extracted (and translated) Text")
     output_container   = st.container()
@@ -108,6 +112,12 @@ def grouper(iterable, step):
         result.append(iterable[i:i+step])
     return result
 
+def num_tokens_from_string(string, llm_encoding):
+    return len(llm_encoding.encode(string))
+
+def show_total_tokens(n):
+     token_container.markdown(f'Tokens used: {n} (~cost ${n/1000*COST_1K})')
+
 if open_api_key:
     LLM_OPENAI_API_KEY = open_api_key
 else:
@@ -115,11 +125,13 @@ else:
 
 langchain.llm_cache = SQLiteCache()
 
-llm_score = ChatOpenAI(model_name = "gpt-3.5-turbo", openai_api_key = LLM_OPENAI_API_KEY, max_tokens = 2000)
-llm_trans = ChatOpenAI(model_name = "gpt-3.5-turbo", openai_api_key = LLM_OPENAI_API_KEY, max_tokens = 2000)
+llm = ChatOpenAI(model_name = MODEL_NAME, openai_api_key = LLM_OPENAI_API_KEY, max_tokens = 2000)
 
 score_prompt = PromptTemplate.from_template(score_prompt_template)
+score_chain  = LLMChain(llm=llm, prompt = score_prompt)
+
 translation_prompt= PromptTemplate.from_template(translation_prompt_template)
+translation_chain  = LLMChain(llm=llm, prompt = translation_prompt)
     
 #input_url = input_container.text_area("URL: ", "", key="input")
 input_url = input_container.text_input("URL: ", "", key="input")
@@ -128,9 +140,12 @@ input_url = input_container.text_input("URL: ", "", key="input")
 # Long English: https://www.pmi.com/us/about-us/our-leadership-team
 # Non English https://www.pmi.com/markets/portugal/pt/news/details?articleId=tabaqueira-participa-na-consulta-pública-para-a-estratégia-nacional-de-luta-contra-o-cancro-2021-2030
 
+
 topic_chunks = grouper(TOPICS_LIST, 3)
 
 if input_url:
+    total_token_count = 0
+
     debug_container.markdown('Request URL...')
     input_text = load_html(input_url)
     debug_container.markdown(f'Done. Got {len(input_text)} chars.')
@@ -163,8 +178,10 @@ if input_url:
     no_translation = False
     for i, p in enumerate(paragpaph_list):
         debug_container.markdown(f'Request LLM for translation {i+1}/{len(paragpaph_list)}...')
-        translation_chain  = LLMChain(llm=llm_trans, prompt = translation_prompt)
-        translated_text = translation_chain.run(article = p)
+        with get_openai_callback() as cb:
+            translated_text = translation_chain.run(article = p)
+        total_token_count += cb.total_tokens
+        show_total_tokens(total_token_count)
         try:
             translated_text_json = json.loads(get_json(translated_text))
             translated_lang = translated_text_json["lang"]
@@ -191,8 +208,10 @@ if input_url:
             topics_id_name_list = {t[0]:t[1] for t in topic_def}
 
             debug_container.markdown(f'Request LLM to score {i+1}/{len(translated_list)}, topics chunk {j+1}/{len(topic_chunks)}...')
-            score_chain  = LLMChain(llm=llm_score, prompt = score_prompt)
-            extracted_score = score_chain.run(topics = topics_for_prompt, article = p)
+            with get_openai_callback() as cb:
+                extracted_score = score_chain.run(topics = topics_for_prompt, article = p)
+            total_token_count += cb.total_tokens
+            show_total_tokens(total_token_count)
             debug_container.markdown(f'Done. Got {len(extracted_score)} chars.')
             
             try:
@@ -212,6 +231,8 @@ if input_url:
             except Exception as error:
                 output_container.markdown(f'Error JSON:\n\n{extracted_score}\n\nError: {error}\n\n{traceback.format_exc()}', unsafe_allow_html=True)
         
+    show_total_tokens(total_token_count)
+
     result_list = []
     for s in result_score.keys():
         result_list.append([s, *result_score[s]])
