@@ -117,7 +117,7 @@ def num_tokens_from_string(string, llm_encoding):
     return len(llm_encoding.encode(string))
 
 def show_total_tokens(n):
-     token_container.markdown(f'Tokens used: {n} (~cost ${n/1000*COST_1K:0.4})')
+     token_container.markdown(f'Tokens used: {n} (~cost ${n/1000*COST_1K:10.4f})')
 
 def text_extractor(text):
     footer_text_list = footer_texts.split('\n')
