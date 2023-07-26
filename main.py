@@ -13,6 +13,8 @@ from langchain.callbacks import get_openai_callback
 MODEL_NAME = "gpt-3.5-turbo"
 COST_1K = 0.002
 
+FOOTER_LIST = ['Quick links']
+
 how_it_work = """\
 First please put your openAPI key into settings.
 Then insert URL here and check output. Only one URL supported now.
@@ -39,7 +41,7 @@ Think about it step by step.
 Also add score of relevance from 0 to 1 (0 - not relevant, 1 - fully relevant).
 When possible you should include parts of original text to make explanation more clear.
 Provide as much arguments as possible why article is related or not to the topic.
-Be very scrupulous when you do classification.
+Be very scrupulous when you do classification. If it's only one or two words then it's not enough to be relevant.
 When article can be considered as related to the topic, but does not provide any information - reduce score.
 Validate all provided topics one by one.
 
@@ -68,7 +70,7 @@ TOPICS_LIST = [
 st.set_page_config(page_title="PMI Topics Demo", page_icon=":robot:")
 st.title('PMI Topics Demo')
 
-tab_one, tab_bulk, tab_apikey = st.tabs(["Process one URL", "Bulk processing", "Settings"])
+tab_one, tab_bulk, tab_settings = st.tabs(["Process one URL", "Bulk processing", "Settings"])
 
 with tab_one:
     header_container   = st.container()
@@ -76,12 +78,15 @@ with tab_one:
     debug_container    = st.empty()
     token_container    = st.empty()
     org_text_container = st.expander(label="Original Text")
+    lang_container     = st.empty()
     text_container     = st.expander(label="Extracted (and translated) Text")
     output_container   = st.container()
 
-with tab_apikey:
+with tab_settings:
     key_header_container   = st.container()
     open_api_key = key_header_container.text_input("OpenAPI Key: ", "", key="open_api_key")
+    footer_container = st.container()
+    footer_texts = footer_container.text_area("Footers", value= '\n'.join(FOOTER_LIST))
 
 header_container.markdown(how_it_work, unsafe_allow_html=True)
 
@@ -93,17 +98,13 @@ def load_html(url):
 
 def get_json(text):
     text = text.replace(", ]", "]").replace(",]", "]").replace(",\n]", "]")
-    open_bracket = text.find('[')
+    open_bracket = min(text.find('['), text.find('{'))
     if open_bracket == -1:
-        open_bracket = text.find('{')
-        if open_bracket == -1:
-            return text
+        return text
             
-    close_bracket = text.find(']')
+    close_bracket = max(text.rfind(']'), text.rfind('}'))
     if close_bracket == -1:
-        close_bracket = text.find('}')
-        if close_bracket == -1:
-            return text
+        return text
     return text[open_bracket:close_bracket+1]
 
 def grouper(iterable, step):
@@ -116,7 +117,18 @@ def num_tokens_from_string(string, llm_encoding):
     return len(llm_encoding.encode(string))
 
 def show_total_tokens(n):
-     token_container.markdown(f'Tokens used: {n} (~cost ${n/1000*COST_1K})')
+     token_container.markdown(f'Tokens used: {n} (~cost ${n/1000*COST_1K:0.4})')
+
+def text_extractor(text):
+    footer_text_list = footer_texts.split('\n')
+    for f in footer_text_list:
+        f = f.strip()
+        if len(f) == 0:
+            continue
+        footer_index = text.find(f)
+        if footer_index != -1:
+            text = text[:footer_index]
+    return text
 
 if open_api_key:
     LLM_OPENAI_API_KEY = open_api_key
@@ -150,6 +162,8 @@ if input_url:
     input_text = load_html(input_url)
     debug_container.markdown(f'Done. Got {len(input_text)} chars.')
     org_text_container.markdown(input_text)
+
+    input_text = text_extractor(input_text)
 
     input_text_list = input_text.split('\n')
 
@@ -195,10 +209,11 @@ if input_url:
             no_translation = True
 
     if not no_translation:
-        text_container.markdown(' '.join(translated_list))
+        lang_container.markdown(f'Language of original text: {translated_lang}')
     else:
-        text_container.markdown("Text is in English. No translation needed.")
+        lang_container.markdown("Text is in English. No translation needed.")
         translated_list = paragpaph_list # just use "as is"
+    text_container.markdown(' '.join(translated_list))
         
     result_score = {}
     
