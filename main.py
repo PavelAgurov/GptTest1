@@ -37,7 +37,9 @@ You have numerated list of topics:
 {topics}
 
 You task is to check if each topic is relevant to the provided article (delimited with XML tags) and explain why.
+Also take into considiration article's URL that can be also relevant or not.
 Think about it step by step. 
+
 Also add score of relevance from 0 to 1 (0 - not relevant, 1 - fully relevant).
 When possible you should include parts of original text to make explanation more clear.
 Provide as much arguments as possible why article is related or not to the topic.
@@ -54,6 +56,7 @@ Example output:
 ]
 
 <article>{article}</article>
+<article_url>{url}</article_url>
 """
 
 TOPICS_LIST = [
@@ -199,7 +202,7 @@ if input_url:
         try:
             translated_text_json = json.loads(get_json(translated_text))
             translated_lang = translated_text_json["lang"]
-            if translated_lang == "English":
+            if translated_lang == "English" or translated_lang == "en":
                 no_translation = True
                 debug_container.markdown(f'Text is in English. No translation needed.')
                 break
@@ -224,7 +227,7 @@ if input_url:
 
             debug_container.markdown(f'Request LLM to score {i+1}/{len(translated_list)}, topics chunk {j+1}/{len(topic_chunks)}...')
             with get_openai_callback() as cb:
-                extracted_score = score_chain.run(topics = topics_for_prompt, article = p)
+                extracted_score = score_chain.run(topics = topics_for_prompt, article = p, url = input_url)
             total_token_count += cb.total_tokens
             show_total_tokens(total_token_count)
             debug_container.markdown(f'Done. Got {len(extracted_score)} chars.')
