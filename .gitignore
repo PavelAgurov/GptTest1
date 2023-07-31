@@ -1,2 +1,4 @@
 /run.cmd
 /.streamlit
+result.xlsx
+.langchain.db

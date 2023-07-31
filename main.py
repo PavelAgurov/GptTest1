@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy  as np
 import json
 import os
 import streamlit as st
@@ -9,27 +10,32 @@ from langchain.chains import LLMChain
 from langchain.cache import SQLiteCache
 import traceback
 from langchain.callbacks import get_openai_callback
+import tiktoken
+import collections
 
 MODEL_NAME = "gpt-3.5-turbo"
 COST_1K = 0.002
+MAX_TOKENS = 1000
+FIRST_PARAGRAPH_MAX_TOKEN = 200 # small text to check language
+
+OUTPUT_DATA_FILE = "result.csv"
 
 FOOTER_LIST = ['Quick links']
 
-how_it_work = """\
+how_it_work_one = """\
 First please put your openAPI key into settings.
-Then insert URL here and check output. Only one URL supported now.
+Then insert one or list of URLs and check output.
 """
 
 translation_prompt_template = """/
 You are the best English translator. Please translate provided article (delimited with XML tags) into English.
 Please provide result in JSON format with fields:
-- lang (language of original article)
+- lang (human language of original article - English, Russian, German etc.)
 - translated (translated article)
 Be sure that result is real JSON.
 
 <article>{article}</article>
 """
-
 
 score_prompt_template = """/
 You are text classification machine. 
@@ -73,27 +79,41 @@ TOPICS_LIST = [
 st.set_page_config(page_title="PMI Topics Demo", page_icon=":robot:")
 st.title('PMI Topics Demo')
 
-tab_one, tab_bulk, tab_settings = st.tabs(["Process one URL", "Bulk processing", "Settings"])
+tab_one, tab_settings = st.tabs(["Process one URL", "Settings"])
 
 with tab_one:
-    header_container   = st.container()
-    input_container    = st.container()
-    debug_container    = st.empty()
-    token_container    = st.empty()
-    org_text_container = st.expander(label="Original Text")
-    lang_container     = st.empty()
-    text_container     = st.expander(label="Extracted (and translated) Text")
-    output_container   = st.container()
+    header_container = st.container()
+    bulk_mode_checkbox   = st.checkbox(label= "Bulk mode")
+    inc_source_checbox   = st.checkbox(label= "Include source in bulk output", disabled=not bulk_mode_checkbox)
+    inc_explanation_checbox = st.checkbox(label= "Include explanation in bulk output", disabled=not bulk_mode_checkbox)
+    if not bulk_mode_checkbox:
+        input_url = st.text_input("URL: ", "", key="input")
+    else:
+        input_url = st.text_area("URLs: ", "", key="input")
+    status_container  = st.empty()
+    if not bulk_mode_checkbox:
+        org_text_container = st.expander(label="Original Text").empty()
+        lang_container     = st.empty()
+        text_container     = st.expander(label="Extracted (and translated) Text").empty()
+    output_container = st.container().empty()
+    if bulk_mode_checkbox:
+        export_container = st.empty()
+    debug_container = st.container()
 
 with tab_settings:
-    key_header_container   = st.container()
-    open_api_key = key_header_container.text_input("OpenAPI Key: ", "", key="open_api_key")
-    footer_container = st.container()
-    footer_texts = footer_container.text_area("Footers", value= '\n'.join(FOOTER_LIST))
+    open_api_key = st.text_input("OpenAPI Key: ", "", key="open_api_key")
+    footer_texts = st.text_area("Footers", value= '\n'.join(FOOTER_LIST))
 
-header_container.markdown(how_it_work, unsafe_allow_html=True)
+with st.sidebar:
+    token_container = st.empty()
+    error_container = st.container()
+
+header_container.markdown(how_it_work_one, unsafe_allow_html=True)
 
 from unstructured.partition.html import partition_html
+
+def skip_callback():
+    pass
 
 def load_html(url):
   elements = partition_html(url=url)
@@ -119,6 +139,9 @@ def grouper(iterable, step):
 def num_tokens_from_string(string, llm_encoding):
     return len(llm_encoding.encode(string))
 
+def sort_dict_by_value(d, reverse = False):
+  return dict(sorted(d.items(), key = lambda x: x[1], reverse = reverse))
+
 def show_total_tokens(n):
      token_container.markdown(f'Tokens used: {n} (~cost ${n/1000*COST_1K:10.4f})')
 
@@ -133,6 +156,33 @@ def text_extractor(text):
             text = text[:footer_index]
     return text
 
+def text_to_paragraph(extracted_text, token_estimator):
+    result_paragraph_list = []
+    extracted_sentence_list = extracted_text.split('\n')
+
+    current_token_count = 0
+    current_paragraph   = []
+    for i, p in enumerate(extracted_sentence_list):
+        max_tokens = FIRST_PARAGRAPH_MAX_TOKEN
+        if len(result_paragraph_list) > 0: # first paragpath found
+            max_tokens = MAX_TOKENS
+        token_count_p = len(token_estimator.encode(p))
+        if ((current_token_count + token_count_p) < max_tokens):
+            current_paragraph.append(p)
+            current_token_count = current_token_count + token_count_p
+        else:
+            result_paragraph_list.append('\n\n'.join(current_paragraph))
+            current_paragraph  = [p]
+            current_token_count = token_count_p
+    if len(current_paragraph) > 0:
+        result_paragraph_list.append('\n\n'.join(current_paragraph))
+    return result_paragraph_list
+
+@st.cache_data
+def convert_df_to_csv(df : pd.DataFrame):
+    # IMPORTANT: Cache the conversion to prevent computation on every rerun
+    return df.to_csv().encode('utf-8')
+
 if open_api_key:
     LLM_OPENAI_API_KEY = open_api_key
 else:
@@ -140,61 +190,57 @@ else:
 
 langchain.llm_cache = SQLiteCache()
 
-llm = ChatOpenAI(model_name = MODEL_NAME, openai_api_key = LLM_OPENAI_API_KEY, max_tokens = 2000)
+llm = ChatOpenAI(model_name = MODEL_NAME, openai_api_key = LLM_OPENAI_API_KEY, max_tokens = MAX_TOKENS)
 
 score_prompt = PromptTemplate.from_template(score_prompt_template)
 score_chain  = LLMChain(llm=llm, prompt = score_prompt)
 
 translation_prompt= PromptTemplate.from_template(translation_prompt_template)
 translation_chain  = LLMChain(llm=llm, prompt = translation_prompt)
-    
-#input_url = input_container.text_area("URL: ", "", key="input")
-input_url = input_container.text_input("URL: ", "", key="input")
 
+token_estimator = tiktoken.encoding_for_model("gpt-3.5-turbo")
 
 # Long English: https://www.pmi.com/us/about-us/our-leadership-team
 # Non English https://www.pmi.com/markets/portugal/pt/news/details?articleId=tabaqueira-participa-na-consulta-pública-para-a-estratégia-nacional-de-luta-contra-o-cancro-2021-2030
 
+TOPIC_CHUNKS = grouper(TOPICS_LIST, 3)
+TOPIC_DICT   =  {t[0]:t[1] for t in TOPICS_LIST}
 
-topic_chunks = grouper(TOPICS_LIST, 3)
+total_token_count = 0
+show_total_tokens(total_token_count)
 
-if input_url:
-    total_token_count = 0
+if not input_url:
+    st.stop()
 
-    debug_container.markdown('Request URL...')
-    input_text = load_html(input_url)
-    debug_container.markdown(f'Done. Got {len(input_text)} chars.')
-    org_text_container.markdown(input_text)
+input_url_list = input_url.split('\n')
 
-    input_text = text_extractor(input_text)
+bulk_result_list = []
+for index_url, current_url in enumerate(input_url_list):
+    current_url = current_url.strip()
+    if not current_url:
+        continue
 
-    input_text_list = input_text.split('\n')
+    url_index_str = ''
+    if bulk_mode_checkbox:
+        url_index_str = f'url: {index_url+1}/{len(input_url_list)}'
 
-    first_paragpaph_size = 200 # small text to check language
-    next_paragpaph_size  = 800
+    status_container.markdown(f'Request URL [{url_index_str}] "{current_url}"...')
+    input_text = load_html(current_url)
+    input_text_len = len(input_text)
+    status_container.markdown(f'Done. Got {input_text_len} chars.')
+    if not bulk_mode_checkbox:
+        org_text_container.markdown(input_text)
 
-    paragpaph_list = []
-    current_word_count = 0
-    current_paragpaph  = []
-    for i, p in enumerate(input_text_list):
-        words_count_p = len(p.split(' '))
-        current_word_count = current_word_count + words_count_p
-        size = first_paragpaph_size
-        if i > 0:
-            size = next_paragpaph_size
-        if (current_word_count < size):
-            current_paragpaph.append(p)
-        else:
-            paragpaph_list.append('\n\n'.join(current_paragpaph))
-            current_paragpaph  = []
-            current_word_count = 0
-    if len(current_paragpaph) > 0:
-        paragpaph_list.append('\n\n'.join(current_paragpaph))
+    extracted_text = text_extractor(input_text)
+    extracted_text_len = len(extracted_text)
+
+    paragraph_list = text_to_paragraph(extracted_text, token_estimator)
 
     translated_list = []
+    translated_lang = "None"
     no_translation = False
-    for i, p in enumerate(paragpaph_list):
-        debug_container.markdown(f'Request LLM for translation {i+1}/{len(paragpaph_list)}...')
+    for i, p in enumerate(paragraph_list):
+        status_container.markdown(f'Request LLM for translation {url_index_str}, paragraph: {i+1}/{len(paragraph_list)}...')
         with get_openai_callback() as cb:
             translated_text = translation_chain.run(article = p)
         total_token_count += cb.total_tokens
@@ -204,7 +250,7 @@ if input_url:
             translated_lang = translated_text_json["lang"]
             if translated_lang == "English" or translated_lang == "en":
                 no_translation = True
-                debug_container.markdown(f'Text is in English. No translation needed.')
+                status_container.markdown(f'Text is in English. No translation needed.')
                 break
             translated_text = translated_text_json["translated"]
             translated_list.append(translated_text)
@@ -212,51 +258,97 @@ if input_url:
             no_translation = True
 
     if not no_translation:
-        lang_container.markdown(f'Language of original text: {translated_lang}')
+        if not bulk_mode_checkbox:
+            lang_container.markdown(f'Language of original text: {translated_lang}')
     else:
-        lang_container.markdown("Text is in English. No translation needed.")
-        translated_list = paragpaph_list # just use "as is"
-    text_container.markdown(' '.join(translated_list))
-        
+        if not bulk_mode_checkbox:
+            lang_container.markdown("Text is in English. No translation needed.")
+        translated_list = paragraph_list # just use "as is"
+    transpated_text_len = len('\n'.join(translated_list))
+    if not bulk_mode_checkbox:
+        text_container.markdown(' '.join(translated_list))
+
     result_score = {}
-    
+
     for i, p in enumerate(translated_list):
-        for j, topic_def in enumerate(topic_chunks):
+        for j, topic_def in enumerate(TOPIC_CHUNKS):
             topics_for_prompt = "\n".join([f'{t[0]}. {t[2]}' if len(t[2])>0 else f'{t[0]}. {t[1]}' for t in topic_def])
             topics_id_name_list = {t[0]:t[1] for t in topic_def}
 
-            debug_container.markdown(f'Request LLM to score {i+1}/{len(translated_list)}, topics chunk {j+1}/{len(topic_chunks)}...')
+            status_container.markdown(f'Request LLM to score {url_index_str}, paragraph: {i+1}/{len(translated_list)}, topics chunk: {j+1}/{len(TOPIC_CHUNKS)}...')
             with get_openai_callback() as cb:
-                extracted_score = score_chain.run(topics = topics_for_prompt, article = p, url = input_url)
+                extracted_score = score_chain.run(topics = topics_for_prompt, article = p, url = current_url)
             total_token_count += cb.total_tokens
             show_total_tokens(total_token_count)
-            debug_container.markdown(f'Done. Got {len(extracted_score)} chars.')
+            status_container.markdown(f'Done. Got {len(extracted_score)} chars.')
             
             try:
-                debug_container.markdown('Extract result...')
+                status_container.markdown('Extract result...')
                 extracted_score_json = json.loads(get_json(extracted_score))
-                debug_container.markdown(f'')
-            
+                status_container.markdown(f'')
+
                 for t in extracted_score_json:
                     current_score = 0
-                    topic_name = topics_id_name_list[t["TopicID"]]
-                    if topic_name in result_score:
-                        current_score = result_score[topic_name][0]
+                    topic_id = t["TopicID"]
+                    if topic_id in result_score:
+                        current_score = result_score[topic_id][0]
                     new_score = t["Score"]
                     if (new_score > current_score) or (current_score == 0):
-                        result_score[topic_name] = [new_score, t["Explanation"]]
+                        result_score[topic_id] = [new_score, t["Explanation"]]
 
             except Exception as error:
                 output_container.markdown(f'Error JSON:\n\n{extracted_score}\n\nError: {error}\n\n{traceback.format_exc()}', unsafe_allow_html=True)
         
     show_total_tokens(total_token_count)
-
+    
+    ordered_result_score = collections.OrderedDict(sorted(result_score.items()))
     result_list = []
     for s in result_score.keys():
-        result_list.append([s, *result_score[s]])
+        if s in TOPIC_DICT:
+            result_list.append([TOPIC_DICT[s], *ordered_result_score[s]])
+        else:
+            error_container.markdown(ordered_result_score)
 
-    df = pd.DataFrame(result_list, columns = ['Topic', 'Score', 'Explanation'])
-    df = df.sort_values(by=['Score'], ascending=False)
-    output_container.markdown(df.to_html(index=False), unsafe_allow_html=True)
+    bulk_row = [current_url, input_text_len, extracted_text_len, translated_lang, transpated_text_len, ordered_result_score, translated_text]
+    bulk_result_list.append(bulk_row)
 
+    if not bulk_mode_checkbox:
+        df = pd.DataFrame(result_list, columns = ['Topic', 'Score', 'Explanation'])
+        df = df.sort_values(by=['Score'], ascending=False)
+        output_container.dataframe(df, use_container_width=True, hide_index=True)
+
+if bulk_mode_checkbox:
+    bulk_columns = ['URL', 'Input length', 'Extracted length', 'Lang', 'Translated length']
+    if inc_source_checbox:
+        bulk_columns.extend(['Source text'])
+    for t in TOPICS_LIST:
+        bulk_columns.extend([f'[{t[0]}]{t[1]}'])
+        if inc_explanation_checbox:
+            bulk_columns.extend([f'[{t[0]}]Explanation'])
+    bulk_data = []
+    for row in bulk_result_list:
+        bulk_row = [*row[:-2]]
+
+        if inc_source_checbox:
+            source_text = row[-1:][0]
+            bulk_row.extend([source_text])
+        
+        score_data = row[-2:][0]
+        for t in TOPICS_LIST: 
+            if t[0] in score_data:
+                topic_score = score_data[t[0]]
+                bulk_row.extend([topic_score[0]])
+                if inc_explanation_checbox:
+                    bulk_row.extend([topic_score[1]])
+            else:
+                bulk_row.extend([0])
+                if inc_explanation_checbox:
+                    bulk_row.extend([''])
+
+        bulk_data.append(bulk_row)
+    df = pd.DataFrame(bulk_data, columns = bulk_columns)
+    output_container.dataframe(df, use_container_width=True, hide_index=True)
+
+    data = convert_df_to_csv(df)
+    export_container.download_button(label='Download Excel', data = data,  file_name= OUTPUT_DATA_FILE, mime='text/csv', on_click= skip_callback)
       
