@@ -1,5 +1,4 @@
 import pandas as pd
-import numpy  as np
 import json
 import os
 import streamlit as st
@@ -222,9 +221,9 @@ for index_url, current_url in enumerate(input_url_list):
 
     url_index_str = ''
     if bulk_mode_checkbox:
-        url_index_str = f'url: {index_url+1}/{len(input_url_list)}'
+        url_index_str = f'[url: {index_url+1}/{len(input_url_list)}]'
 
-    status_container.markdown(f'Request URL [{url_index_str}] "{current_url}"...')
+    status_container.markdown(f'Request URL {url_index_str} "{current_url}"...')
     input_text = load_html(current_url)
     input_text_len = len(input_text)
     status_container.markdown(f'Done. Got {input_text_len} chars.')
@@ -240,7 +239,7 @@ for index_url, current_url in enumerate(input_url_list):
     translated_lang = "None"
     no_translation = False
     for i, p in enumerate(paragraph_list):
-        status_container.markdown(f'Request LLM for translation {url_index_str}, paragraph: {i+1}/{len(paragraph_list)}...')
+        status_container.markdown(f'Request LLM for translation {url_index_str} paragraph: {i+1}/{len(paragraph_list)}...')
         with get_openai_callback() as cb:
             translated_text = translation_chain.run(article = p)
         total_token_count += cb.total_tokens
@@ -275,7 +274,7 @@ for index_url, current_url in enumerate(input_url_list):
             topics_for_prompt = "\n".join([f'{t[0]}. {t[2]}' if len(t[2])>0 else f'{t[0]}. {t[1]}' for t in topic_def])
             topics_id_name_list = {t[0]:t[1] for t in topic_def}
 
-            status_container.markdown(f'Request LLM to score {url_index_str}, paragraph: {i+1}/{len(translated_list)}, topics chunk: {j+1}/{len(TOPIC_CHUNKS)}...')
+            status_container.markdown(f'Request LLM to score {url_index_str} paragraph: {i+1}/{len(translated_list)}, topics chunk: {j+1}/{len(TOPIC_CHUNKS)}...')
             with get_openai_callback() as cb:
                 extracted_score = score_chain.run(topics = topics_for_prompt, article = p, url = current_url)
             total_token_count += cb.total_tokens
