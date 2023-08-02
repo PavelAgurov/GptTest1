@@ -4,6 +4,8 @@ import os
 import streamlit as st
 import langchain
 from langchain import PromptTemplate
+from langchain.docstore.document import Document
+from langchain.chains.summarize import load_summarize_chain
 from langchain.chat_models import ChatOpenAI
 from langchain.chains import LLMChain
 from langchain.cache import SQLiteCache
@@ -14,7 +16,8 @@ import collections
 
 MODEL_NAME = "gpt-3.5-turbo"
 COST_1K = 0.002
-MAX_TOKENS = 1000
+MAX_TOKENS_TRANSLATION = 1000
+MAX_TOKENS_SCORE = 2000
 FIRST_PARAGRAPH_MAX_TOKEN = 200 # small text to check language
 
 OUTPUT_DATA_FILE = "result.csv"
@@ -42,10 +45,13 @@ You have numerated list of topics:
 {topics}
 
 You task is to check if each topic is relevant to the provided article (delimited with XML tags) and explain why.
-Also take into considiration article's URL that can be also relevant or not.
+Also take into considiration article's URL (delimited with XML tags) that can be also relevant or not.
+URL is very important information that can bring high score for the relevant topic.
+
 Think about it step by step. 
 
 Also add score of relevance from 0 to 1 (0 - not relevant, 1 - fully relevant).
+Note that no two topics can have the same score, all scores must be different.
 When possible you should include parts of original text to make explanation more clear.
 Provide as much arguments as possible why article is related or not to the topic.
 Be very scrupulous when you do classification. If it's only one or two words then it's not enough to be relevant.
@@ -56,7 +62,7 @@ Provide your output in json format with the keys: TopicID, Topic, Score, Explana
 
 Example output:
 [
-{{"TopicID": 1, "Topic": "Tobacco Harm reduction", "Score": 0.5, "Explanation": "some text here"}},
+{{"TopicID": 1, "Topic": "Tobacco Harm reduction", "Score": 0.5, "Explanation": "why article or URL are relevant or not"}},
 {{"TopicID": 2, "Topic": "Tobaco science", "Score": 0, "Explanation": "some text here"}},
 ]
 
@@ -82,9 +88,11 @@ tab_one, tab_settings = st.tabs(["Process one URL", "Settings"])
 
 with tab_one:
     header_container = st.container()
-    bulk_mode_checkbox   = st.checkbox(label= "Bulk mode")
-    inc_source_checbox   = st.checkbox(label= "Include source in bulk output", disabled=not bulk_mode_checkbox)
-    inc_explanation_checbox = st.checkbox(label= "Include explanation in bulk output", disabled=not bulk_mode_checkbox)
+    bulk_mode_checkbox         = st.checkbox(label= "Bulk mode")
+    inc_source_checbox         = st.checkbox(label= "Include source in bulk output", disabled=not bulk_mode_checkbox)
+    inc_explanation_checkbox   = st.checkbox(label= "Include explanation in bulk output", disabled=not bulk_mode_checkbox)
+    score_by_summary_checkbox  = st.checkbox(label= "Score by summary")
+    add_url_score_checkbox     = st.checkbox(label= "Add URL score")
     if not bulk_mode_checkbox:
         input_url = st.text_input("URL: ", "", key="input")
     else:
@@ -92,6 +100,8 @@ with tab_one:
     status_container  = st.empty()
     if not bulk_mode_checkbox:
         org_text_container = st.expander(label="Original Text").empty()
+        if score_by_summary_checkbox:
+            summary_container  = st.expander(label="Summary").empty()
         lang_container     = st.empty()
         text_container     = st.expander(label="Extracted (and translated) Text").empty()
     output_container = st.container().empty()
@@ -164,7 +174,7 @@ def text_to_paragraph(extracted_text, token_estimator):
     for i, p in enumerate(extracted_sentence_list):
         max_tokens = FIRST_PARAGRAPH_MAX_TOKEN
         if len(result_paragraph_list) > 0: # first paragpath found
-            max_tokens = MAX_TOKENS
+            max_tokens = MAX_TOKENS_TRANSLATION
         token_count_p = len(token_estimator.encode(p))
         if ((current_token_count + token_count_p) < max_tokens):
             current_paragraph.append(p)
@@ -189,20 +199,23 @@ else:
 
 langchain.llm_cache = SQLiteCache()
 
-llm = ChatOpenAI(model_name = MODEL_NAME, openai_api_key = LLM_OPENAI_API_KEY, max_tokens = MAX_TOKENS)
-
-score_prompt = PromptTemplate.from_template(score_prompt_template)
-score_chain  = LLMChain(llm=llm, prompt = score_prompt)
-
+llm_translation = ChatOpenAI(model_name = MODEL_NAME, openai_api_key = LLM_OPENAI_API_KEY, max_tokens = MAX_TOKENS_TRANSLATION)
 translation_prompt= PromptTemplate.from_template(translation_prompt_template)
-translation_chain  = LLMChain(llm=llm, prompt = translation_prompt)
+translation_chain  = LLMChain(llm=llm_translation, prompt = translation_prompt)
+
+llm_score = ChatOpenAI(model_name = MODEL_NAME, openai_api_key = LLM_OPENAI_API_KEY, max_tokens = MAX_TOKENS_SCORE)
+score_prompt = PromptTemplate.from_template(score_prompt_template)
+score_chain  = LLMChain(llm=llm_score, prompt = score_prompt)
+
+llm_summary = ChatOpenAI(model_name = MODEL_NAME, openai_api_key = LLM_OPENAI_API_KEY, max_tokens = MAX_TOKENS_SCORE)
+model_summary = load_summarize_chain(llm=llm_summary, chain_type = "refine")
 
 token_estimator = tiktoken.encoding_for_model("gpt-3.5-turbo")
 
 # Long English: https://www.pmi.com/us/about-us/our-leadership-team
 # Non English https://www.pmi.com/markets/portugal/pt/news/details?articleId=tabaqueira-participa-na-consulta-pública-para-a-estratégia-nacional-de-luta-contra-o-cancro-2021-2030
 
-TOPIC_CHUNKS = grouper(TOPICS_LIST, 3)
+TOPIC_CHUNKS = [TOPICS_LIST] # grouper(TOPICS_LIST, 4)
 TOPIC_DICT   =  {t[0]:t[1] for t in TOPICS_LIST}
 
 total_token_count = 0
@@ -230,7 +243,18 @@ for index_url, current_url in enumerate(input_url_list):
     if not bulk_mode_checkbox:
         org_text_container.markdown(input_text)
 
-    extracted_text = text_extractor(input_text)
+    if score_by_summary_checkbox:
+        status_container.markdown(f'Request LLM for summary {url_index_str}...')
+        with get_openai_callback() as cb:
+            summary = model_summary.run([Document(page_content = input_text)])
+            total_token_count += cb.total_tokens
+            show_total_tokens(total_token_count)
+        if not bulk_mode_checkbox:
+            summary_container.markdown(summary)
+        extracted_text = text_extractor(summary)
+        status_container.markdown(f'Summary is ready')
+    else:
+        extracted_text = text_extractor(input_text)
     extracted_text_len = len(extracted_text)
 
     paragraph_list = text_to_paragraph(extracted_text, token_estimator)
@@ -295,6 +319,28 @@ for index_url, current_url in enumerate(input_url_list):
                     if (new_score > current_score) or (current_score == 0):
                         result_score[topic_id] = [new_score, t["Explanation"]]
 
+                if add_url_score_checkbox:
+                    with get_openai_callback() as cb:
+                        url_score = score_chain.run(topics = topics_for_prompt, article = "", url = current_url)
+                    total_token_count += cb.total_tokens
+                    show_total_tokens(total_token_count)
+                    status_container.markdown(f'Extracted URL score...')
+
+                    try:
+                        extracted_url_score_json = json.loads(get_json(url_score))
+                        status_container.markdown(f'')
+
+                        for t in extracted_url_score_json:
+                            current_score = 0
+                            topic_id = t["TopicID"]
+                            if topic_id in result_score:
+                                current_score = result_score[topic_id][0]
+                            new_score = t["Score"]
+                            if (new_score > current_score) or (current_score == 0):
+                                result_score[topic_id] = [new_score, t["Explanation"]]
+
+                    except Exception as error:
+                        output_container.markdown(f'Error JSON:\n\n{url_score}\n\nError: {error}\n\n{traceback.format_exc()}', unsafe_allow_html=True)
             except Exception as error:
                 output_container.markdown(f'Error JSON:\n\n{extracted_score}\n\nError: {error}\n\n{traceback.format_exc()}', unsafe_allow_html=True)
         
@@ -322,7 +368,7 @@ if bulk_mode_checkbox:
         bulk_columns.extend(['Source text'])
     for t in TOPICS_LIST:
         bulk_columns.extend([f'[{t[0]}]{t[1]}'])
-        if inc_explanation_checbox:
+        if inc_explanation_checkbox:
             bulk_columns.extend([f'[{t[0]}]Explanation'])
     bulk_data = []
     for row in bulk_result_list:
@@ -337,11 +383,11 @@ if bulk_mode_checkbox:
             if t[0] in score_data:
                 topic_score = score_data[t[0]]
                 bulk_row.extend([topic_score[0]])
-                if inc_explanation_checbox:
+                if inc_explanation_checkbox:
                     bulk_row.extend([topic_score[1]])
             else:
                 bulk_row.extend([0])
-                if inc_explanation_checbox:
+                if inc_explanation_checkbox:
                     bulk_row.extend([''])
 
         bulk_data.append(bulk_row)
