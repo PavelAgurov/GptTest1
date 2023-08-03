@@ -6,9 +6,11 @@ import langchain
 from langchain import PromptTemplate
 from langchain.docstore.document import Document
 from langchain.chains.summarize import load_summarize_chain
+from langchain.text_splitter import CharacterTextSplitter
 from langchain.chat_models import ChatOpenAI
 from langchain.chains import LLMChain
 from langchain.cache import SQLiteCache
+from langchain.chains.combine_documents.refine import RefineDocumentsChain
 import traceback
 from langchain.callbacks import get_openai_callback
 import tiktoken
@@ -18,6 +20,7 @@ MODEL_NAME = "gpt-3.5-turbo"
 COST_1K = 0.002
 MAX_TOKENS_TRANSLATION = 1000
 MAX_TOKENS_SCORE = 2000
+MAX_TOKENS_SUMMARY = 2500
 FIRST_PARAGRAPH_MAX_TOKEN = 200 # small text to check language
 
 OUTPUT_DATA_FILE = "result.csv"
@@ -48,37 +51,73 @@ You task is to check if each topic is relevant to the provided article (delimite
 Also take into considiration article's URL (delimited with XML tags) that can be also relevant or not.
 URL is very important information that can bring high score for the relevant topic.
 
-Think about it step by step. 
-
 Also add score of relevance from 0 to 1 (0 - not relevant, 1 - fully relevant).
-Note that no two topics can have the same score, all scores must be different.
 When possible you should include parts of original text to make explanation more clear.
 Provide as much arguments as possible why article is related or not to the topic.
 Be very scrupulous when you do classification. If it's only one or two words then it's not enough to be relevant.
 When article can be considered as related to the topic, but does not provide any information - reduce score.
-Validate all provided topics one by one.
 
-Provide your output in json format with the keys: TopicID, Topic, Score, Explanation.
+Select two most relevant topics as primary and secondary and find score of relevance of it.
+Add explanation why you choose it as primary and secondary topics.
 
-Example output:
-[
-{{"TopicID": 1, "Topic": "Tobacco Harm reduction", "Score": 0.5, "Explanation": "why article or URL are relevant or not"}},
-{{"TopicID": 2, "Topic": "Tobaco science", "Score": 0, "Explanation": "some text here"}},
-]
+Think about it step by step:
+- read all topics
+- read article
+- generate scores for each topic
+- provide output in JSON format:
+{{
+    "topics":[
+        {{"topicID": 1, "score": 0.5, "explanation": "why article or URL are relevant or not"}},
+        {{"topicID": 2, "score": 0  , "explanation": "some text here"}}
+    ],
+    "primary_topic":[
+        "topic_id" : primary topic id,
+        "explanation": "why this topic is primary by relevance",
+        "score": 0.9
+    ],
+    "secondary_topic":[
+        "topic_id" : secondary topic id,
+        "explanation": "why this topic is secondary by relevance",
+        "score": 0.1
+    ]
+}}
 
 <article>{article}</article>
 <article_url>{url}</article_url>
 """
 
+refine_initial_prompt_template = """Write a concise summary of the following:
+
+"{text}"
+
+CONCISE SUMMARY:"""
+
+refine_combine_prompt_template = (
+    "Your job is to produce a final summary\n"
+    "We have provided an existing summary up to a certain point: {existing_answer}\n"
+    "We have the opportunity to refine the existing summary"
+    "(only if needed) with some more context below.\n"
+    "------------\n"
+    "{text}\n"
+    "------------\n"
+    "Given the new context, refine the original summary\n"
+    "If the context isn't useful, return the original summary."
+)
+
+
 TOPICS_LIST = [
-  [1, "Tobacco Harm reduction", ""], 
-  [2, "Tobacco multi-product approach",  ""],
-  [3, "Inclusion, Diversity",  ""],
-  [4, "Leadership content", "Leadership, strategies, interviews, communication, team management"],
-  [5, "Investor Relations",  ""],
-  [6, "Tobacco science",  ""],
-  [7, "Smoke-free vision",  ""],
-  [8, "Wellness, Healthcare, Health", ""]
+   [1, "Tobacco Harm reduction", "Exploring scientifically backed smoke-free alternatives as a better choice for adult smokers, complementing cessation strategies and commitment to innovation."], 
+   [2, "Tobacco multi-product approach",  "Science-based smoke-free alternatives to cigarettes, including e-vapor devices, heated tobacco products, and oral smokeless products in a multicategory portfolio."],
+   [3, "Inclusion, Diversity",  "Promoting workplace diversity and inclusion through initiatives, practices, policies, and resources, embracing all dimensions of diversity for equal representation and a truly inclusive culture."],
+   [4, "Leadership content", "Management figures share insights, strategies, and best practices on effective leadership, communication, decision-making, and team management"],
+   [5, "Investor Relations",  "Your comprehensive resource for financial performance, corporate governance, and transparent communication with investors, providing updates on results, reports, events, and essential investor resources."],
+   [6, "Our science",  "Unveiling smoke-free vision through cutting-edge research, innovations, and breakthroughs, showcasing scientific advancements driving smoke-free products."],
+   [7, "Smoke-free vision",  "Dedicated mission to provide millions of smokers with safer alternatives, advancing cutting-edge smoke-free products to realize a cigarette-free future."],
+   [8, "PMI Transformation", "Transformation from a cigarette company to a company providing smoke-free products that are better alternatives to cigarettes"],
+   [9, "Sustainability", "Exploring Environmental, Social, and Governance principles for a greener, more responsible future, encompassing diverse subjects like renewable energy, waste reduction, ethical sourcing, and sustainable development goals."],
+   [10, "Regulation", "Emphasizing the role of effective regulatory frameworks in promoting smoke-free alternatives and driving towards a cigarette-free future through tobacco harm reduction"],
+   [11, "Jobs", "Your gateway to explore career opportunities, offering valuable insights into job roles, qualifications, and the recruitment process, along with current job openings, application details, and the benefits of joining our organization."],
+   [12, "Partnership and Engagement", "Collaborative efforts, strategic alliances, and community engagement fostering positive impact."]
 ]
 
 st.set_page_config(page_title="PMI Topics Demo", page_icon=":robot:")
@@ -92,7 +131,6 @@ with tab_one:
     inc_source_checbox         = st.checkbox(label= "Include source in bulk output", disabled=not bulk_mode_checkbox)
     inc_explanation_checkbox   = st.checkbox(label= "Include explanation in bulk output", disabled=not bulk_mode_checkbox)
     score_by_summary_checkbox  = st.checkbox(label= "Score by summary")
-    add_url_score_checkbox     = st.checkbox(label= "Add URL score")
     if not bulk_mode_checkbox:
         input_url = st.text_input("URL: ", "", key="input")
     else:
@@ -104,6 +142,7 @@ with tab_one:
             summary_container  = st.expander(label="Summary").empty()
         lang_container     = st.empty()
         text_container     = st.expander(label="Extracted (and translated) Text").empty()
+    main_topics_container = st.container().empty()
     output_container = st.container().empty()
     if bulk_mode_checkbox:
         export_container = st.empty()
@@ -165,7 +204,7 @@ def text_extractor(text):
             text = text[:footer_index]
     return text
 
-def text_to_paragraph(extracted_text, token_estimator):
+def text_to_paragraph(extracted_text, token_estimator) -> []:
     result_paragraph_list = []
     extracted_sentence_list = extracted_text.split('\n')
 
@@ -207,8 +246,22 @@ llm_score = ChatOpenAI(model_name = MODEL_NAME, openai_api_key = LLM_OPENAI_API_
 score_prompt = PromptTemplate.from_template(score_prompt_template)
 score_chain  = LLMChain(llm=llm_score, prompt = score_prompt)
 
-llm_summary = ChatOpenAI(model_name = MODEL_NAME, openai_api_key = LLM_OPENAI_API_KEY, max_tokens = MAX_TOKENS_SCORE)
-model_summary = load_summarize_chain(llm=llm_summary, chain_type = "refine")
+llm_summary = ChatOpenAI(model_name = MODEL_NAME, openai_api_key = LLM_OPENAI_API_KEY, max_tokens = MAX_TOKENS_SUMMARY)
+#model_summary = load_summarize_chain(llm=llm_summary, chain_type = "refine")
+
+text_splitter = CharacterTextSplitter.from_tiktoken_encoder(encoding_name= MODEL_NAME, model_name=MODEL_NAME, chunk_size=1000, chunk_overlap=0)
+
+refine_initial_prompt = PromptTemplate(template= refine_initial_prompt_template, input_variables=["text"])
+refine_combine_prompt = PromptTemplate(template= refine_combine_prompt_template, input_variables=["existing_answer", "text"])
+refine_initial_chain = LLMChain(llm= llm_summary, prompt= refine_initial_prompt)
+refine_combine_chain = LLMChain(llm= llm_summary, prompt= refine_combine_prompt)
+model_summary = RefineDocumentsChain(
+        initial_llm_chain=refine_initial_chain,
+        refine_llm_chain=refine_combine_chain,
+        document_variable_name="text",
+        initial_response_name="existing_answer",
+
+    )
 
 token_estimator = tiktoken.encoding_for_model("gpt-3.5-turbo")
 
@@ -244,9 +297,14 @@ for index_url, current_url in enumerate(input_url_list):
         org_text_container.markdown(input_text)
 
     if score_by_summary_checkbox:
+
+        status_container.markdown(f'Split documents for refining...')
+        split_docs = text_splitter.split_documents([Document(page_content = input_text)])
+        status_container.markdown(f'')
+
         status_container.markdown(f'Request LLM for summary {url_index_str}...')
         with get_openai_callback() as cb:
-            summary = model_summary.run([Document(page_content = input_text)])
+            summary = model_summary.run(split_docs)
             total_token_count += cb.total_tokens
             show_total_tokens(total_token_count)
         if not bulk_mode_checkbox:
@@ -257,7 +315,10 @@ for index_url, current_url in enumerate(input_url_list):
         extracted_text = text_extractor(input_text)
     extracted_text_len = len(extracted_text)
 
-    paragraph_list = text_to_paragraph(extracted_text, token_estimator)
+    if not score_by_summary_checkbox:
+        paragraph_list = text_to_paragraph(extracted_text, token_estimator)
+    else:
+        paragraph_list = [extracted_text]
 
     translated_list = []
     translated_lang = "None"
@@ -292,6 +353,8 @@ for index_url, current_url in enumerate(input_url_list):
         text_container.markdown(' '.join(translated_list))
 
     result_score = {}
+    result_primary_topic_json   = None
+    result_secondary_topic_json = None
 
     for i, p in enumerate(translated_list):
         for j, topic_def in enumerate(TOPIC_CHUNKS):
@@ -304,48 +367,51 @@ for index_url, current_url in enumerate(input_url_list):
             total_token_count += cb.total_tokens
             show_total_tokens(total_token_count)
             status_container.markdown(f'Done. Got {len(extracted_score)} chars.')
-            
+
             try:
                 status_container.markdown('Extract result...')
                 extracted_score_json = json.loads(get_json(extracted_score))
                 status_container.markdown(f'')
 
-                for t in extracted_score_json:
+                primary_topic_json = extracted_score_json['primary_topic']
+                if not result_primary_topic_json or result_primary_topic_json['score'] < primary_topic_json['score']:
+                    result_primary_topic_json = primary_topic_json
+
+                secondary_topic_json = extracted_score_json['secondary_topic']
+                if not result_secondary_topic_json or result_secondary_topic_json['score'] < secondary_topic_json['score']:
+                    result_secondary_topic_json = secondary_topic_json
+
+                for t in extracted_score_json['topics']:
                     current_score = 0
-                    topic_id = t["TopicID"]
+                    topic_id = t["topicID"]
                     if topic_id in result_score:
                         current_score = result_score[topic_id][0]
-                    new_score = t["Score"]
+                    new_score = t["score"]
                     if (new_score > current_score) or (current_score == 0):
-                        result_score[topic_id] = [new_score, t["Explanation"]]
+                        result_score[topic_id] = [new_score, t["explanation"]]
 
-                if add_url_score_checkbox:
-                    with get_openai_callback() as cb:
-                        url_score = score_chain.run(topics = topics_for_prompt, article = "", url = current_url)
-                    total_token_count += cb.total_tokens
-                    show_total_tokens(total_token_count)
-                    status_container.markdown(f'Extracted URL score...')
-
-                    try:
-                        extracted_url_score_json = json.loads(get_json(url_score))
-                        status_container.markdown(f'')
-
-                        for t in extracted_url_score_json:
-                            current_score = 0
-                            topic_id = t["TopicID"]
-                            if topic_id in result_score:
-                                current_score = result_score[topic_id][0]
-                            new_score = t["Score"]
-                            if (new_score > current_score) or (current_score == 0):
-                                result_score[topic_id] = [new_score, t["Explanation"]]
-
-                    except Exception as error:
-                        output_container.markdown(f'Error JSON:\n\n{url_score}\n\nError: {error}\n\n{traceback.format_exc()}', unsafe_allow_html=True)
             except Exception as error:
-                output_container.markdown(f'Error JSON:\n\n{extracted_score}\n\nError: {error}\n\n{traceback.format_exc()}', unsafe_allow_html=True)
+                output_container.markdown(f'Error:\n\n{extracted_score}\n\nError: {error}\n\n{traceback.format_exc()}', unsafe_allow_html=True)
+                st.stop()
         
     show_total_tokens(total_token_count)
     
+    main_topics_result = []
+    if result_primary_topic_json:
+        topic_id = result_primary_topic_json['topic_id']
+        topic_score   = result_primary_topic_json['score']
+        topic_explanation = result_primary_topic_json['explanation']
+        main_topics_result.append(['Primary', TOPIC_DICT[topic_id], topic_score, topic_explanation])
+
+    if result_secondary_topic_json:
+        topic_id = result_secondary_topic_json['topic_id']
+        topic_score   = result_secondary_topic_json['score']
+        topic_explanation = result_secondary_topic_json['explanation']
+        main_topics_result.append(['Secondary', TOPIC_DICT[topic_id], topic_score, topic_explanation])
+
+    df = pd.DataFrame(main_topics_result, columns = ['#', 'Topic', 'Score', 'Explanation'])
+    main_topics_container.dataframe(df, use_container_width=True, hide_index=True)
+
     ordered_result_score = collections.OrderedDict(sorted(result_score.items()))
     result_list = []
     for s in result_score.keys():
