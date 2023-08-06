@@ -2,3 +2,5 @@
 /.streamlit
 result.xlsx
 .langchain.db
+/.langchain.db
+/__pycache__

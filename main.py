@@ -5,16 +5,20 @@ import streamlit as st
 import langchain
 from langchain import PromptTemplate
 from langchain.docstore.document import Document
-from langchain.chains.summarize import load_summarize_chain
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.chat_models import ChatOpenAI
 from langchain.chains import LLMChain
 from langchain.cache import SQLiteCache
-from langchain.chains.combine_documents.refine import RefineDocumentsChain
 import traceback
 from langchain.callbacks import get_openai_callback
 import tiktoken
 import collections
+from refine import RefineChain
+from topics import TOPICS_LIST
+import utils
+import prompts
+import strings
+
 
 MODEL_NAME = "gpt-3.5-turbo"
 COST_1K = 0.002
@@ -27,105 +31,12 @@ OUTPUT_DATA_FILE = "result.csv"
 
 FOOTER_LIST = ['Quick links']
 
-how_it_work_one = """\
-First please put your openAPI key into settings.
-Then insert one or list of URLs and check output.
-"""
-
-translation_prompt_template = """/
-You are the best English translator. Please translate provided article (delimited with XML tags) into English.
-Please provide result in JSON format with fields:
-- lang (human language of original article - English, Russian, German etc.)
-- translated (translated article)
-Be sure that result is real JSON.
-
-<article>{article}</article>
-"""
-
-score_prompt_template = """/
-You are text classification machine. 
-You have numerated list of topics:
-{topics}
-
-You task is to check if each topic is relevant to the provided article (delimited with XML tags) and explain why.
-Also take into considiration article's URL (delimited with XML tags) that can be also relevant or not.
-URL is very important information that can bring high score for the relevant topic.
-
-Also add score of relevance from 0 to 1 (0 - not relevant, 1 - fully relevant).
-When possible you should include parts of original text to make explanation more clear.
-Provide as much arguments as possible why article is related or not to the topic.
-Be very scrupulous when you do classification. If it's only one or two words then it's not enough to be relevant.
-When article can be considered as related to the topic, but does not provide any information - reduce score.
-
-Select two most relevant topics as primary and secondary and find score of relevance of it.
-Add explanation why you choose it as primary and secondary topics.
-
-Think about it step by step:
-- read all topics
-- read article
-- generate scores for each topic
-- provide output in JSON format:
-{{
-    "topics":[
-        {{"topicID": 1, "score": 0.5, "explanation": "why article or URL are relevant or not"}},
-        {{"topicID": 2, "score": 0  , "explanation": "some text here"}}
-    ],
-    "primary_topic":[
-        "topic_id" : primary topic id,
-        "explanation": "why this topic is primary by relevance",
-        "score": 0.9
-    ],
-    "secondary_topic":[
-        "topic_id" : secondary topic id,
-        "explanation": "why this topic is secondary by relevance",
-        "score": 0.1
-    ]
-}}
-
-<article>{article}</article>
-<article_url>{url}</article_url>
-"""
-
-refine_initial_prompt_template = """Write a concise summary of the following:
-
-"{text}"
-
-CONCISE SUMMARY:"""
-
-refine_combine_prompt_template = (
-    "Your job is to produce a final summary\n"
-    "We have provided an existing summary up to a certain point: {existing_answer}\n"
-    "We have the opportunity to refine the existing summary"
-    "(only if needed) with some more context below.\n"
-    "------------\n"
-    "{text}\n"
-    "------------\n"
-    "Given the new context, refine the original summary\n"
-    "If the context isn't useful, return the original summary."
-)
-
-
-TOPICS_LIST = [
-   [1, "Tobacco Harm reduction", "Exploring scientifically backed smoke-free alternatives as a better choice for adult smokers, complementing cessation strategies and commitment to innovation."], 
-   [2, "Tobacco multi-product approach",  "Science-based smoke-free alternatives to cigarettes, including e-vapor devices, heated tobacco products, and oral smokeless products in a multicategory portfolio."],
-   [3, "Inclusion, Diversity",  "Promoting workplace diversity and inclusion through initiatives, practices, policies, and resources, embracing all dimensions of diversity for equal representation and a truly inclusive culture."],
-   [4, "Leadership content", "Management figures share insights, strategies, and best practices on effective leadership, communication, decision-making, and team management"],
-   [5, "Investor Relations",  "Your comprehensive resource for financial performance, corporate governance, and transparent communication with investors, providing updates on results, reports, events, and essential investor resources."],
-   [6, "Our science",  "Unveiling smoke-free vision through cutting-edge research, innovations, and breakthroughs, showcasing scientific advancements driving smoke-free products."],
-   [7, "Smoke-free vision",  "Dedicated mission to provide millions of smokers with safer alternatives, advancing cutting-edge smoke-free products to realize a cigarette-free future."],
-   [8, "PMI Transformation", "Transformation from a cigarette company to a company providing smoke-free products that are better alternatives to cigarettes"],
-   [9, "Sustainability", "Exploring Environmental, Social, and Governance principles for a greener, more responsible future, encompassing diverse subjects like renewable energy, waste reduction, ethical sourcing, and sustainable development goals."],
-   [10, "Regulation", "Emphasizing the role of effective regulatory frameworks in promoting smoke-free alternatives and driving towards a cigarette-free future through tobacco harm reduction"],
-   [11, "Jobs", "Your gateway to explore career opportunities, offering valuable insights into job roles, qualifications, and the recruitment process, along with current job openings, application details, and the benefits of joining our organization."],
-   [12, "Partnership and Engagement", "Collaborative efforts, strategic alliances, and community engagement fostering positive impact."]
-]
-
 st.set_page_config(page_title="PMI Topics Demo", page_icon=":robot:")
 st.title('PMI Topics Demo')
 
-tab_one, tab_settings = st.tabs(["Process one URL", "Settings"])
+tab_process, tab_settings, tab_debug = st.tabs(["Process URL(s)", "Settings", "Debug"])
 
-with tab_one:
+with tab_process:
     header_container = st.container()
     bulk_mode_checkbox         = st.checkbox(label= "Bulk mode")
     inc_source_checbox         = st.checkbox(label= "Include source in bulk output", disabled=not bulk_mode_checkbox)
@@ -152,11 +63,15 @@ with tab_settings:
     open_api_key = st.text_input("OpenAPI Key: ", "", key="open_api_key")
     footer_texts = st.text_area("Footers", value= '\n'.join(FOOTER_LIST))
 
+with tab_debug:
+    if not bulk_mode_checkbox:
+        debug_json_container = st.container()
+
 with st.sidebar:
     token_container = st.empty()
     error_container = st.container()
 
-header_container.markdown(how_it_work_one, unsafe_allow_html=True)
+header_container.markdown(strings.how_it_work, unsafe_allow_html=True)
 
 from unstructured.partition.html import partition_html
 
@@ -166,17 +81,6 @@ def skip_callback():
 def load_html(url):
   elements = partition_html(url=url)
   return "\n\n".join([str(el) for el in elements])
-
-def get_json(text):
-    text = text.replace(", ]", "]").replace(",]", "]").replace(",\n]", "]")
-    open_bracket = min(text.find('['), text.find('{'))
-    if open_bracket == -1:
-        return text
-            
-    close_bracket = max(text.rfind(']'), text.rfind('}'))
-    if close_bracket == -1:
-        return text
-    return text[open_bracket:close_bracket+1]
 
 def grouper(iterable, step):
     result = []
@@ -239,34 +143,18 @@ else:
 langchain.llm_cache = SQLiteCache()
 
 llm_translation = ChatOpenAI(model_name = MODEL_NAME, openai_api_key = LLM_OPENAI_API_KEY, max_tokens = MAX_TOKENS_TRANSLATION)
-translation_prompt= PromptTemplate.from_template(translation_prompt_template)
+translation_prompt= PromptTemplate.from_template(prompts.translation_prompt_template)
 translation_chain  = LLMChain(llm=llm_translation, prompt = translation_prompt)
 
 llm_score = ChatOpenAI(model_name = MODEL_NAME, openai_api_key = LLM_OPENAI_API_KEY, max_tokens = MAX_TOKENS_SCORE)
-score_prompt = PromptTemplate.from_template(score_prompt_template)
+score_prompt = PromptTemplate.from_template(prompts.score_prompt_template)
 score_chain  = LLMChain(llm=llm_score, prompt = score_prompt)
 
 llm_summary = ChatOpenAI(model_name = MODEL_NAME, openai_api_key = LLM_OPENAI_API_KEY, max_tokens = MAX_TOKENS_SUMMARY)
-#model_summary = load_summarize_chain(llm=llm_summary, chain_type = "refine")
 
 text_splitter = CharacterTextSplitter.from_tiktoken_encoder(encoding_name= MODEL_NAME, model_name=MODEL_NAME, chunk_size=1000, chunk_overlap=0)
 
-refine_initial_prompt = PromptTemplate(template= refine_initial_prompt_template, input_variables=["text"])
-refine_combine_prompt = PromptTemplate(template= refine_combine_prompt_template, input_variables=["existing_answer", "text"])
-refine_initial_chain = LLMChain(llm= llm_summary, prompt= refine_initial_prompt)
-refine_combine_chain = LLMChain(llm= llm_summary, prompt= refine_combine_prompt)
-model_summary = RefineDocumentsChain(
-        initial_llm_chain=refine_initial_chain,
-        refine_llm_chain=refine_combine_chain,
-        document_variable_name="text",
-        initial_response_name="existing_answer",
-
-    )
-
 token_estimator = tiktoken.encoding_for_model("gpt-3.5-turbo")
-
-# Long English: https://www.pmi.com/us/about-us/our-leadership-team
-# Non English https://www.pmi.com/markets/portugal/pt/news/details?articleId=tabaqueira-participa-na-consulta-pública-para-a-estratégia-nacional-de-luta-contra-o-cancro-2021-2030
 
 TOPIC_CHUNKS = [TOPICS_LIST] # grouper(TOPICS_LIST, 4)
 TOPIC_DICT   =  {t[0]:t[1] for t in TOPICS_LIST}
@@ -293,20 +181,22 @@ for index_url, current_url in enumerate(input_url_list):
     input_text = load_html(current_url)
     input_text_len = len(input_text)
     status_container.markdown(f'Done. Got {input_text_len} chars.')
+    input_text = input_text.replace("“", "'").replace("“", "”").replace("\"", "'")
     if not bulk_mode_checkbox:
         org_text_container.markdown(input_text)
 
     if score_by_summary_checkbox:
-
         status_container.markdown(f'Split documents for refining...')
         split_docs = text_splitter.split_documents([Document(page_content = input_text)])
         status_container.markdown(f'')
 
         status_container.markdown(f'Request LLM for summary {url_index_str}...')
-        with get_openai_callback() as cb:
-            summary = model_summary.run(split_docs)
-            total_token_count += cb.total_tokens
-            show_total_tokens(total_token_count)
+        refine_result = RefineChain(llm_summary).refine(split_docs)
+        summary = ""
+        if not refine_result.error:
+            summary = refine_result.summary
+        total_token_count += refine_result.tokens_used
+        show_total_tokens(total_token_count)
         if not bulk_mode_checkbox:
             summary_container.markdown(summary)
         extracted_text = text_extractor(summary)
@@ -319,7 +209,7 @@ for index_url, current_url in enumerate(input_url_list):
         paragraph_list = text_to_paragraph(extracted_text, token_estimator)
     else:
         paragraph_list = [extracted_text]
-
+    
     translated_list = []
     translated_lang = "None"
     no_translation = False
@@ -330,7 +220,7 @@ for index_url, current_url in enumerate(input_url_list):
         total_token_count += cb.total_tokens
         show_total_tokens(total_token_count)
         try:
-            translated_text_json = json.loads(get_json(translated_text))
+            translated_text_json = json.loads(utils.get_fixed_json(translated_text))
             translated_lang = translated_text_json["lang"]
             if translated_lang == "English" or translated_lang == "en":
                 no_translation = True
@@ -367,10 +257,12 @@ for index_url, current_url in enumerate(input_url_list):
             total_token_count += cb.total_tokens
             show_total_tokens(total_token_count)
             status_container.markdown(f'Done. Got {len(extracted_score)} chars.')
+            if not bulk_mode_checkbox:
+                debug_json_container.markdown(extracted_score)
 
             try:
                 status_container.markdown('Extract result...')
-                extracted_score_json = json.loads(get_json(extracted_score))
+                extracted_score_json = json.loads(utils.get_fixed_json(extracted_score))
                 status_container.markdown(f'')
 
                 primary_topic_json = extracted_score_json['primary_topic']
