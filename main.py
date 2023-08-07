@@ -238,9 +238,11 @@ for index_url, current_url in enumerate(input_url_list):
         if not bulk_mode_checkbox:
             lang_container.markdown("Text is in English. No translation needed.")
         translated_list = paragraph_list # just use "as is"
-    transpated_text_len = len('\n'.join(translated_list))
+    
+    full_translated_text = '\n'.join(translated_list)
+    transpated_text_len = len(full_translated_text)
     if not bulk_mode_checkbox:
-        text_container.markdown(' '.join(translated_list))
+        text_container.markdown(full_translated_text)
 
     result_score = {}
     result_primary_topic_json   = None
@@ -289,20 +291,27 @@ for index_url, current_url in enumerate(input_url_list):
     show_total_tokens(total_token_count)
     
     main_topics_result = []
+    primary_topic = ""
+    primary_topic_score = 0
+    primary_topic_explanation =""
     if result_primary_topic_json:
-        topic_id = result_primary_topic_json['topic_id']
-        topic_score   = result_primary_topic_json['score']
-        topic_explanation = result_primary_topic_json['explanation']
-        main_topics_result.append(['Primary', TOPIC_DICT[topic_id], topic_score, topic_explanation])
+        primary_topic_score = result_primary_topic_json['score']
+        primary_topic_explanation = result_primary_topic_json['explanation']
+        primary_topic = TOPIC_DICT[result_primary_topic_json['topic_id']]
+        main_topics_result.append(['Primary', primary_topic, primary_topic_score, primary_topic_explanation])
 
+    secondary_topic = ""
+    secondary_topic_score = 0
+    secondary_topic_explanation = ""
     if result_secondary_topic_json:
-        topic_id = result_secondary_topic_json['topic_id']
-        topic_score   = result_secondary_topic_json['score']
-        topic_explanation = result_secondary_topic_json['explanation']
-        main_topics_result.append(['Secondary', TOPIC_DICT[topic_id], topic_score, topic_explanation])
+        secondary_topic_score = result_secondary_topic_json['score']
+        secondary_topic_explanation = result_secondary_topic_json['explanation']
+        secondary_topic = TOPIC_DICT[result_secondary_topic_json['topic_id']]
+        main_topics_result.append(['Secondary', secondary_topic, secondary_topic_score, secondary_topic_explanation])
 
-    df = pd.DataFrame(main_topics_result, columns = ['#', 'Topic', 'Score', 'Explanation'])
-    main_topics_container.dataframe(df, use_container_width=True, hide_index=True)
+    if not bulk_mode_checkbox:
+        df = pd.DataFrame(main_topics_result, columns = ['#', 'Topic', 'Score', 'Explanation'])
+        main_topics_container.dataframe(df, use_container_width=True, hide_index=True)
 
     ordered_result_score = collections.OrderedDict(sorted(result_score.items()))
     result_list = []
@@ -312,7 +321,13 @@ for index_url, current_url in enumerate(input_url_list):
         else:
             error_container.markdown(ordered_result_score)
 
-    bulk_row = [current_url, input_text_len, extracted_text_len, translated_lang, transpated_text_len, ordered_result_score, translated_text]
+    bulk_row = [
+                current_url, input_text_len, extracted_text_len, translated_lang, transpated_text_len, 
+                primary_topic, primary_topic_score, primary_topic_explanation,
+                secondary_topic, secondary_topic_score, secondary_topic_explanation,
+                full_translated_text, # 11 - source text
+                ordered_result_score  # 12 - topic data
+               ]
     bulk_result_list.append(bulk_row)
 
     if not bulk_mode_checkbox:
@@ -322,6 +337,12 @@ for index_url, current_url in enumerate(input_url_list):
 
 if bulk_mode_checkbox:
     bulk_columns = ['URL', 'Input length', 'Extracted length', 'Lang', 'Translated length']
+    bulk_columns.extend(['Primary', 'Primary score'])
+    if inc_explanation_checkbox:
+        bulk_columns.extend(['Primary explanation'])
+    bulk_columns.extend(['Secondary', 'Secondary score'])
+    if inc_explanation_checkbox:
+        bulk_columns.extend(['Secondary explanation'])
     if inc_source_checbox:
         bulk_columns.extend(['Source text'])
     for t in TOPICS_LIST:
@@ -330,13 +351,21 @@ if bulk_mode_checkbox:
             bulk_columns.extend([f'[{t[0]}]Explanation'])
     bulk_data = []
     for row in bulk_result_list:
-        bulk_row = [*row[:-2]]
+        bulk_row = []
+        bulk_row.extend([row[0], row[1], row[2], row[3], row[4]])
+
+        bulk_row.extend([row[5], row[6]]) # primary topic
+        if inc_explanation_checkbox:
+            bulk_row.extend([row[7]])
+
+        bulk_row.extend([row[8], row[9]]) # secondary topic
+        if inc_explanation_checkbox:
+            bulk_row.extend([row[10]])
 
         if inc_source_checbox:
-            source_text = row[-1:][0]
-            bulk_row.extend([source_text])
+            bulk_row.extend([row[11]])
         
-        score_data = row[-2:][0]
+        score_data = row[12]
         for t in TOPICS_LIST: 
             if t[0] in score_data:
                 topic_score = score_data[t[0]]

@@ -1,6 +1,6 @@
 TOPICS_LIST = [
    [1, "Tobacco Harm reduction", "Focuses on harm reduction applied to tobacco and exploring the scientific basis behind it, highlighting the development of smoke-free alternatives to traditional cigarettes supported by research and technology."], 
-   [2, "Tobacco multi-product approach", "Focuses on products: the range of science-based smoke-free alternatives to cigarettes, including e-vapor devices, heated tobacco products, and oral smokeless products in a multicategory portfolio."],
+   [2, "Tobacco multi-product approach", "Several categories of smokeless alternatives (e-vaping devices, heated tobacco products, oral smokeless products and other)."],
    [3, "Inclusion, Diversity",  "Highlighting the significance of fostering an inclusive workplace through initiatives, training, practices, and policies, while also integrating content featuring diversity metrics, successful case studies, and resources for cultivating diversity and inclusivity in organizational culture."],
    [4, "Leadership content", "Centers on leadership within company, covering leadership principles, strategies, and insights from thought leaders, including articles, interviews, and perspectives, while also discussing effective communication, decision-making, team management, and inspiration."],
    [5, "Investor Relations",  "Your comprehensive resource for financial performance, corporate governance, and transparent communication with investors, providing updates on results, reports, events, and essential investor resources."],
