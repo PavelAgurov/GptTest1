@@ -85,17 +85,16 @@ header_container.markdown(strings.how_it_work, unsafe_allow_html=True)
 
 def skip_callback():
     """Skip callback"""
-    pass
 
 def show_total_tokens(n):
-     """Show total count of tokens"""
-     token_container.markdown(f'Tokens used: {n} (~cost ${n/1000*COST_1K:10.4f})')
+    """Show total count of tokens"""
+    token_container.markdown(f'Tokens used: {n} (~cost ${n/1000*COST_1K:10.4f})')
 
 @st.cache_data
-def convert_df_to_csv(df : pd.DataFrame):
+def convert_df_to_csv(df_csv : pd.DataFrame):
     """Convert DataFrame into csv and cahce it"""
     # IMPORTANT: Cache the conversion to prevent computation on every rerun
-    return df.to_csv().encode('utf-8')
+    return df_csv.to_csv().encode('utf-8')
 
 if open_api_key:
     LLM_OPENAI_API_KEY = open_api_key
