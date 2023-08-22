@@ -1,7 +1,17 @@
+"""
+    Main PMI
+"""
+
+# pylint: disable=C0301,C0103,C0303,C0304,C0305,C0411,E1121
+
+import collections
 import pandas as pd
 import json
 import os
+import traceback
+
 import streamlit as st
+
 import langchain
 from langchain import PromptTemplate
 from langchain.docstore.document import Document
@@ -9,23 +19,23 @@ from langchain.text_splitter import CharacterTextSplitter
 from langchain.chat_models import ChatOpenAI
 from langchain.chains import LLMChain
 from langchain.cache import SQLiteCache
-import traceback
 from langchain.callbacks import get_openai_callback
 import tiktoken
-import collections
+
 from refine import RefineChain
 from topics import TOPICS_LIST
 import utils
 import prompts
 import strings
-
+from text_processing import text_extractor, text_to_paragraph
+from url_processing import get_topic_by_url
 
 MODEL_NAME = "gpt-3.5-turbo"
 COST_1K = 0.002
-MAX_TOKENS_TRANSLATION = 1000
 MAX_TOKENS_SCORE = 2000
 MAX_TOKENS_SUMMARY = 2500
 FIRST_PARAGRAPH_MAX_TOKEN = 200 # small text to check language
+MAX_TOKENS_TRANSLATION    = 1000
 
 OUTPUT_DATA_FILE = "result.csv"
 
@@ -73,65 +83,17 @@ with st.sidebar:
 
 header_container.markdown(strings.how_it_work, unsafe_allow_html=True)
 
-from unstructured.partition.html import partition_html
-
 def skip_callback():
+    """Skip callback"""
     pass
 
-def load_html(url):
-  elements = partition_html(url=url)
-  return "\n\n".join([str(el) for el in elements])
-
-def grouper(iterable, step):
-    result = []
-    for i in range(0, len(iterable), step):
-        result.append(iterable[i:i+step])
-    return result
-
-def num_tokens_from_string(string, llm_encoding):
-    return len(llm_encoding.encode(string))
-
-def sort_dict_by_value(d, reverse = False):
-  return dict(sorted(d.items(), key = lambda x: x[1], reverse = reverse))
-
 def show_total_tokens(n):
+     """Show total count of tokens"""
      token_container.markdown(f'Tokens used: {n} (~cost ${n/1000*COST_1K:10.4f})')
-
-def text_extractor(text):
-    footer_text_list = footer_texts.split('\n')
-    for f in footer_text_list:
-        f = f.strip()
-        if len(f) == 0:
-            continue
-        footer_index = text.find(f)
-        if footer_index != -1:
-            text = text[:footer_index]
-    return text
-
-def text_to_paragraph(extracted_text, token_estimator) -> []:
-    result_paragraph_list = []
-    extracted_sentence_list = extracted_text.split('\n')
-
-    current_token_count = 0
-    current_paragraph   = []
-    for i, p in enumerate(extracted_sentence_list):
-        max_tokens = FIRST_PARAGRAPH_MAX_TOKEN
-        if len(result_paragraph_list) > 0: # first paragpath found
-            max_tokens = MAX_TOKENS_TRANSLATION
-        token_count_p = len(token_estimator.encode(p))
-        if ((current_token_count + token_count_p) < max_tokens):
-            current_paragraph.append(p)
-            current_token_count = current_token_count + token_count_p
-        else:
-            result_paragraph_list.append('\n\n'.join(current_paragraph))
-            current_paragraph  = [p]
-            current_token_count = token_count_p
-    if len(current_paragraph) > 0:
-        result_paragraph_list.append('\n\n'.join(current_paragraph))
-    return result_paragraph_list
 
 @st.cache_data
 def convert_df_to_csv(df : pd.DataFrame):
+    """Convert DataFrame into csv and cahce it"""
     # IMPORTANT: Cache the conversion to prevent computation on every rerun
     return df.to_csv().encode('utf-8')
 
@@ -156,8 +118,8 @@ text_splitter = CharacterTextSplitter.from_tiktoken_encoder(encoding_name= MODEL
 
 token_estimator = tiktoken.encoding_for_model("gpt-3.5-turbo")
 
-TOPIC_CHUNKS = [TOPICS_LIST] # grouper(TOPICS_LIST, 4)
-TOPIC_DICT   =  {t[0]:t[1] for t in TOPICS_LIST}
+TOPIC_CHUNKS = [TOPICS_LIST] # utils.grouper(TOPICS_LIST, 4)
+TOPIC_DICT : dict[int, str]   =  {t[0]:t[1] for t in TOPICS_LIST}
 
 total_token_count = 0
 show_total_tokens(total_token_count)
@@ -178,7 +140,7 @@ for index_url, current_url in enumerate(input_url_list):
         url_index_str = f'[url: {index_url+1}/{len(input_url_list)}]'
 
     status_container.markdown(f'Request URL {url_index_str} "{current_url}"...')
-    input_text = load_html(current_url)
+    input_text = utils.load_html(current_url)
     input_text_len = len(input_text)
     status_container.markdown(f'Done. Got {input_text_len} chars.')
     input_text = input_text.replace("“", "'").replace("“", "”").replace("\"", "'")
@@ -186,9 +148,9 @@ for index_url, current_url in enumerate(input_url_list):
         org_text_container.markdown(input_text)
 
     if score_by_summary_checkbox:
-        status_container.markdown(f'Split documents for refining...')
+        status_container.markdown('Split documents for refining...')
         split_docs = text_splitter.split_documents([Document(page_content = input_text)])
-        status_container.markdown(f'')
+        status_container.markdown('')
 
         status_container.markdown(f'Request LLM for summary {url_index_str}...')
         refine_result = RefineChain(llm_summary).refine(split_docs)
@@ -199,14 +161,14 @@ for index_url, current_url in enumerate(input_url_list):
         show_total_tokens(total_token_count)
         if not bulk_mode_checkbox:
             summary_container.markdown(summary)
-        extracted_text = text_extractor(summary)
-        status_container.markdown(f'Summary is ready')
+        extracted_text = text_extractor(footer_texts, summary)
+        status_container.markdown('Summary is ready')
     else:
-        extracted_text = text_extractor(input_text)
+        extracted_text = text_extractor(footer_texts, input_text)
     extracted_text_len = len(extracted_text)
 
     if not score_by_summary_checkbox:
-        paragraph_list = text_to_paragraph(extracted_text, token_estimator)
+        paragraph_list = text_to_paragraph(extracted_text, token_estimator, FIRST_PARAGRAPH_MAX_TOKEN, MAX_TOKENS_TRANSLATION)
     else:
         paragraph_list = [extracted_text]
     
@@ -222,13 +184,13 @@ for index_url, current_url in enumerate(input_url_list):
         try:
             translated_text_json = json.loads(utils.get_fixed_json(translated_text))
             translated_lang = translated_text_json["lang"]
-            if translated_lang == "English" or translated_lang == "en":
+            if translated_lang in ["English", "en"]:
                 no_translation = True
-                status_container.markdown(f'Text is in English. No translation needed.')
+                status_container.markdown('Text is in English. No translation needed.')
                 break
             translated_text = translated_text_json["translated"]
             translated_list.append(translated_text)
-        except:
+        except Exception: # pylint: disable=W0718
             no_translation = True
 
     if not no_translation:
@@ -245,8 +207,8 @@ for index_url, current_url in enumerate(input_url_list):
         text_container.markdown(full_translated_text)
 
     result_score = {}
-    result_primary_topic_json   = None
-    result_secondary_topic_json = None
+    result_primary_topic_json   = {}
+    result_secondary_topic_json = {}
 
     for i, p in enumerate(translated_list):
         for j, topic_def in enumerate(TOPIC_CHUNKS):
@@ -265,7 +227,7 @@ for index_url, current_url in enumerate(input_url_list):
             try:
                 status_container.markdown('Extract result...')
                 extracted_score_json = json.loads(utils.get_fixed_json(extracted_score))
-                status_container.markdown(f'')
+                status_container.markdown('')
 
                 primary_topic_json = extracted_score_json['primary_topic']
                 if not result_primary_topic_json or result_primary_topic_json['score'] < primary_topic_json['score']:
@@ -284,30 +246,59 @@ for index_url, current_url in enumerate(input_url_list):
                     if (new_score > current_score) or (current_score == 0):
                         result_score[topic_id] = [new_score, t["explanation"]]
 
-            except Exception as error:
+            except Exception as error: # pylint: disable=W0718
                 output_container.markdown(f'Error:\n\n{extracted_score}\n\nError: {error}\n\n{traceback.format_exc()}', unsafe_allow_html=True)
                 st.stop()
         
     show_total_tokens(total_token_count)
-    
+
     main_topics_result = []
+
+    topic_index_by_url : int = get_topic_by_url(current_url)
+    
+# logic is a bit complicated here:
+# - depect primary topic from LLM
+# - if we have different primary topic detected from URL - assign it as primary, skipp LLM version
+#   (but if primary topic from URL is the same as from LLM - save LLM version)
+# - if secondary topic is equal to primary now - try to re-assign LLM primary into secondary
+
+    primary_topic_index = -1
     primary_topic = ""
     primary_topic_score = 0
     primary_topic_explanation =""
-    if result_primary_topic_json:
+    primary_topic_is_URL = False
+    if result_primary_topic_json: # we have primary topic from LLM
+        primary_topic_index = result_primary_topic_json['topic_id']
+        primary_topic = TOPIC_DICT[primary_topic_index]
         primary_topic_score = result_primary_topic_json['score']
         primary_topic_explanation = result_primary_topic_json['explanation']
-        primary_topic = TOPIC_DICT[result_primary_topic_json['topic_id']]
-        main_topics_result.append(['Primary', primary_topic, primary_topic_score, primary_topic_explanation])
+    if topic_index_by_url and primary_topic_index != topic_index_by_url: # we have other topic from URL - override
+        primary_topic_index = topic_index_by_url
+        primary_topic = TOPIC_DICT[primary_topic_index]
+        primary_topic_score = 1
+        primary_topic_explanation = "Detected from URL"
+        primary_topic_is_URL = True
+    main_topics_result.append(['Primary', primary_topic, primary_topic_score, primary_topic_explanation])
 
+    # secondary topic
+    secondary_topic_index = -1
     secondary_topic = ""
     secondary_topic_score = 0
     secondary_topic_explanation = ""
-    if result_secondary_topic_json:
+    if result_secondary_topic_json: # secondary topic from LLM
+        secondary_topic_index = result_secondary_topic_json['topic_id']
+        secondary_topic = TOPIC_DICT[secondary_topic_index]
         secondary_topic_score = result_secondary_topic_json['score']
         secondary_topic_explanation = result_secondary_topic_json['explanation']
-        secondary_topic = TOPIC_DICT[result_secondary_topic_json['topic_id']]
-        main_topics_result.append(['Secondary', secondary_topic, secondary_topic_score, secondary_topic_explanation])
+
+    # if now we have primary the same as secondary, because owerride it by URL-topic - get primary as secondary
+    if primary_topic_index == secondary_topic_index and result_primary_topic_json and primary_topic_is_URL:
+        secondary_topic_index = result_primary_topic_json['topic_id']
+        secondary_topic = TOPIC_DICT[secondary_topic_index]
+        secondary_topic_score = result_primary_topic_json['score']
+        secondary_topic_explanation = result_primary_topic_json['explanation']
+
+    main_topics_result.append(['Secondary', secondary_topic, secondary_topic_score, secondary_topic_explanation])
 
     if not bulk_mode_checkbox:
         df = pd.DataFrame(main_topics_result, columns = ['#', 'Topic', 'Score', 'Explanation'])
@@ -315,9 +306,10 @@ for index_url, current_url in enumerate(input_url_list):
 
     ordered_result_score = collections.OrderedDict(sorted(result_score.items()))
     result_list = []
-    for s in result_score.keys():
-        if s in TOPIC_DICT:
-            result_list.append([TOPIC_DICT[s], *ordered_result_score[s]])
+    for score_item in result_score.items():
+        score_item_topic_index = score_item[0]
+        if score_item_topic_index in TOPIC_DICT:
+            result_list.append([TOPIC_DICT[score_item_topic_index], *ordered_result_score[score_item_topic_index]])
         else:
             error_container.markdown(ordered_result_score)
 
@@ -378,9 +370,10 @@ if bulk_mode_checkbox:
                     bulk_row.extend([''])
 
         bulk_data.append(bulk_row)
-    df = pd.DataFrame(bulk_data, columns = bulk_columns)
-    output_container.dataframe(df, use_container_width=True, hide_index=True)
 
-    data = convert_df_to_csv(df)
-    export_container.download_button(label='Download Excel', data = data,  file_name= OUTPUT_DATA_FILE, mime='text/csv', on_click= skip_callback)
+    df_bulk = pd.DataFrame(bulk_data, columns = bulk_columns)
+    output_container.dataframe(df_bulk, use_container_width=True, hide_index=True)
+
+    csv_data = convert_df_to_csv(df_bulk)
+    export_container.download_button(label='Download Excel', data = csv_data,  file_name= OUTPUT_DATA_FILE, mime='text/csv', on_click= skip_callback)
       
