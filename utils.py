@@ -4,7 +4,6 @@
 
 # pylint: disable=C0301,C0103,C0303,C0304,C0305,C0411
 
-from unstructured.partition.html import partition_html
 import re
 
 def get_fixed_json(text : str) -> str:
@@ -18,11 +17,6 @@ def get_fixed_json(text : str) -> str:
     if close_bracket == -1:
         return text
     return text[open_bracket:close_bracket+1]
-
-def load_html(url : str) -> str:
-    """Load HTML"""
-    elements = partition_html(url=url)
-    return "\n\n".join([str(el) for el in elements])
 
 def grouper(iterable, step) -> list:
     """Split list into groups"""

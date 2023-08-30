@@ -4,3 +4,5 @@ result.xlsx
 .langchain.db
 /.langchain.db
 /__pycache__
+/backend/__pycache__
+/backend/llm/__pycache__

@@ -2,10 +2,9 @@
     Text processing functions
 """
 
-def text_extractor(footer_texts, text):
+def text_extractor(footer_texts : list[str], text : str):
     """Remove footer from text"""
-    footer_text_list = footer_texts.split('\n')
-    for f in footer_text_list:
+    for f in footer_texts:
         f = f.strip()
         if len(f) == 0:
             continue
@@ -14,8 +13,8 @@ def text_extractor(footer_texts, text):
             text = text[:footer_index]
     return text
 
-def text_to_paragraph(extracted_text, token_estimator, FIRST_PARAGRAPH_MAX_TOKEN, MAX_TOKENS_TRANSLATION) -> []:
-    """Split text into paragraph by tokens"""
+def text_to_paragraphs(extracted_text, token_estimator, FIRST_PARAGRAPH_MAX_TOKEN, MAX_TOKENS_TRANSLATION) -> []:
+    """Split text into paragraphs by tokens"""
     result_paragraph_list = []
     extracted_sentence_list = extracted_text.split('\n')
 

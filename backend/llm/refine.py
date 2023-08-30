@@ -37,6 +37,7 @@ Please provide result in JSON format:
 """
 
 class RefineResult():
+    """Result of refine"""
     summary : str
     tokens_used : int
     error : str
@@ -48,8 +49,10 @@ class RefineResult():
         self.steps = steps
 
 class RefineChain():
+    """Refine chain"""
     refine_initial_chain : LLMChain
     refine_combine_chain : LLMChain
+    
     def __init__(self, llm):
         refine_initial_prompt = PromptTemplate(template= refine_initial_prompt_template, input_variables=["text"])
         self.refine_initial_chain = LLMChain(llm= llm, prompt= refine_initial_prompt)
