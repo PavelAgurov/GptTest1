@@ -3,6 +3,8 @@
 """
 # pylint: disable=C0301
 
+#TODO: replace by class
+
 TOPICS_LIST = [
    [1, "Tobacco Harm reduction", "Focuses on harm reduction applied to tobacco and exploring the scientific basis behind it, highlighting the development of smoke-free alternatives to traditional cigarettes supported by research and technology."], 
    [2, "Tobacco multi-product approach", "Several categories of smokeless alternatives (e-vaping devices, heated tobacco products, oral smokeless products and other)."],

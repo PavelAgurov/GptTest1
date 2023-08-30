@@ -25,10 +25,4 @@ def grouper(iterable, step) -> list:
         result.append(iterable[i:i+step])
     return result
 
-def sort_dict_by_value(d, reverse = False):
-    """Sort dict"""
-    return dict(sorted(d.items(), key = lambda x: x[1], reverse = reverse))
 
-def num_tokens_from_string(string, llm_encoding):
-    """Get count of tokens for string"""
-    return len(llm_encoding.encode(string))
