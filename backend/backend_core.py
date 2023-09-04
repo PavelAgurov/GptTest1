@@ -99,6 +99,8 @@ class BackEndCore():
 
         # load text from URL
         self.report_substatus('Fetch data from URL...')
+        print(f'Fetch data from URL [{url}]')
+        
         input_text = ''
         input_text_len = 0
         try:

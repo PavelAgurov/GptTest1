@@ -2,7 +2,9 @@
     Text processing functions
 """
 
-def text_extractor(footer_texts : list[str], text : str):
+import tiktoken
+
+def text_extractor(footer_texts : list[str], text : str) -> str:
     """Remove footer from text"""
     for f in footer_texts:
         f = f.strip()
@@ -13,7 +15,10 @@ def text_extractor(footer_texts : list[str], text : str):
             text = text[:footer_index]
     return text
 
-def text_to_paragraphs(extracted_text, token_estimator, FIRST_PARAGRAPH_MAX_TOKEN, MAX_TOKENS_TRANSLATION) -> []:
+def text_to_paragraphs(extracted_text : str,
+                        token_estimator : tiktoken.core.Encoding,
+                        FIRST_PARAGRAPH_MAX_TOKEN : int,
+                        MAX_TOKENS_TRANSLATION : int) -> list[str]:
     """Split text into paragraphs by tokens"""
     result_paragraph_list = []
     extracted_sentence_list = extracted_text.split('\n')

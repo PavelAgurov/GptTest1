@@ -5,6 +5,20 @@
 # pylint: disable=C0301,C0103,C0303,C0304,C0305,C0411
 
 import re
+import json
+import traceback
+
+def get_llm_json(text : str) -> any:
+    """Get fixed LLM Json"""
+    try:
+        return json.loads(get_fixed_json(text))
+    except Exception as error: # pylint: disable=W0718
+        print('----------------------')
+        print(f'Error: {error}.')
+        print(f'Track: {traceback.format_exc()}')
+        print(f'JSON: {text}')
+        print('----------------------')
+        raise error
 
 def get_fixed_json(text : str) -> str:
     """Fix LLM json"""

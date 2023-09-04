@@ -14,6 +14,7 @@ from utils_streamlit import streamlit_hack_remove_top_space
 from backend.backend_core import BackEndCore, BackendParams, BackendCallbacks
 from backend.base_classes import MainTopics, ScoreResultItem
 from backend.bulk_output import BulkOutputParams
+from sitemap_utils import sitemap_load, SitemapResult
 
 # https://discuss.streamlit.io/t/watching-custom-folders/1507/4
 os.environ['PYTHONPATH'] = ';'.join([r"backend", r"backend\\llm"])
@@ -33,6 +34,7 @@ if SESSION_TOKEN_COUNT not in st.session_state:
 MODE_ONE   = 'One URL'
 MODE_BULK  = 'Bulk mode'
 MODE_EXCEL = 'Load from excel'
+MODE_SITEMAP = 'From Sitemap'
 
 st.set_page_config(page_title="PMI Topics Demo", layout="wide")
 st.title('PMI Topics Demo')
@@ -41,7 +43,7 @@ streamlit_hack_remove_top_space()
 tab_process, tab_settings, tab_debug = st.tabs(["Process URL(s)", "Settings", "Debug"])
 
 with tab_process:
-    mode_selector              = st.radio(label="Mode", options=[MODE_ONE, MODE_BULK, MODE_EXCEL], index=0, horizontal=True, label_visibility="hidden")
+    mode_selector              = st.radio(label="Mode", options=[MODE_ONE, MODE_BULK, MODE_EXCEL, MODE_SITEMAP], index=0, horizontal=True, label_visibility="hidden")
     col_s1, col_s2, col_s3 = st.columns(3)
     inc_source_checbox         = col_s1.checkbox(label= "Include source in bulk output", disabled= mode_selector == MODE_ONE)
     inc_explanation_checkbox   = col_s2.checkbox(label= "Include explanation in bulk output", disabled= mode_selector == MODE_ONE)
@@ -51,7 +53,7 @@ with tab_process:
         input_url_one = st.text_input("URL: ", "", key="input")
     elif mode_selector == MODE_BULK:
         input_url_bulk = st.text_area("URLs: ", "", key="input")
-    else:
+    elif mode_selector == MODE_EXCEL:
         input_url_excel = st.file_uploader(
             'Excel with URLs',
             type=["xlsx"],
@@ -59,6 +61,12 @@ with tab_process:
             key="input_url_file"
         )
         excel_data_status = st.empty()
+    else:
+        col_sm1, col_sm2, col_sm3 = st.columns(3)
+        input_sitemap  = col_sm1.text_input("Sitemap URL: ", "", key="input")
+        site_map_from  = col_sm2.number_input("From:", min_value=1, max_value= 10000, value=1)
+        site_map_limit = col_sm3.number_input("Max count ('0' means 'no limit'):", min_value=0, max_value= 10000, value=100)
+        sitemap_data_status = st.empty()
 
     _, col_button = st.columns([10, 1])
     run_button = col_button.button(label="RUN")
@@ -201,13 +209,27 @@ elif mode_selector == MODE_BULK:
         report_status('URL(s) were not provided')
         st.stop()
     input_url_list = input_url_bulk.split('\n')
-else:
+elif mode_selector == MODE_BULK:
     if not input_url_excel:
         report_status('Excel file was not uploaded')
         st.stop()
     excel_data = pd.read_excel(input_url_excel)
     input_url_list = excel_data.iloc[:,0].values
     excel_data_status.markdown(f'Loaded {len(input_url_list)} URLs')
+else:
+    if not input_sitemap:
+        report_status('Sitemap URL was not provided')
+        st.stop()
+    sitemap_result = sitemap_load(input_sitemap)
+    if sitemap_result.error:
+        sitemap_data_status.markdown(f'ERROR: {sitemap_result.error}')
+        st.stop()
+    input_url_list = sitemap_result.url_list
+    site_map_total_count = len(input_url_list)
+    input_url_list = input_url_list[site_map_from-1:] # apply min
+    if site_map_limit>0:
+        input_url_list = input_url_list[:site_map_limit] # apply max
+    sitemap_data_status.markdown(f'Loaded {len(input_url_list)} URLs (total count: {site_map_total_count})')
 
 backend_params = BackendParams(
     LLM_OPENAI_API_KEY,
