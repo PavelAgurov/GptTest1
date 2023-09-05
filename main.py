@@ -209,7 +209,7 @@ elif mode_selector == MODE_BULK:
         report_status('URL(s) were not provided')
         st.stop()
     input_url_list = input_url_bulk.split('\n')
-elif mode_selector == MODE_BULK:
+elif mode_selector == MODE_EXCEL:
     if not input_url_excel:
         report_status('Excel file was not uploaded')
         st.stop()

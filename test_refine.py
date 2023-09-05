@@ -10,6 +10,7 @@ import pytest
 from backend.llm.refine import RefineChain
 
 def simple_len_function(text : str):
+    """Simple len function only for test"""
     return len(text)
 
 def test_refine():
