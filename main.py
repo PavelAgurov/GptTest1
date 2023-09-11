@@ -191,13 +191,14 @@ def show_topics_score_callback(result_list : list): # TODO - replace list to the
     df = df.sort_values(by=['Score'], ascending=False)
     output_container.dataframe(df, use_container_width=True, hide_index=True)
 
-def update_topic_editor(updated_editor : pd.DataFrame, topic_manager: TopicManager):
+def update_topic_editor(updated_editor : pd.DataFrame, topic_manager: TopicManager) -> bool:
     """Changed data in topic editor"""
     saved_editor = pd.DataFrame([[t.id, t.name, t.description] for t in topic_manager.get_topic_list()], columns=["Id", "Name", "Description"])
     if saved_editor is not None and updated_editor.equals(saved_editor):
-        return
+        return False
     updated = [TopicDefinition(*row) for row in updated_editor.values.tolist()]
     topic_manager.save_topic_descriptions(updated)
+    return True
 
 def show_topic_editor(topic_manager : TopicManager):
     """Show topic editor"""
@@ -243,7 +244,8 @@ backend_params = BackendParams(
 back_end = BackEndCore(backend_params)
 
 topic_editor_control = show_topic_editor(back_end.topic_manager)
-update_topic_editor(topic_editor_control, back_end.topic_manager)
+if update_topic_editor(topic_editor_control, back_end.topic_manager):
+    st.experimental_rerun()
 
 show_total_tokens()
 
