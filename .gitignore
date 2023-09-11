@@ -6,3 +6,4 @@ result.xlsx
 /__pycache__
 /backend/__pycache__
 /backend/llm/__pycache__
+.topics/topics.json

@@ -5,6 +5,7 @@
 
 from dataclasses import dataclass
 from dataclasses_json import dataclass_json
+from typing import Optional
 
 @dataclass_json
 @dataclass
@@ -13,7 +14,13 @@ class TopicDefinition:
     id : int
     name : str
     description : str
-    url_words : list[str] = None
+    url_words : Optional[list[str]] = None
+
+    def get_url_words_str(self) -> str:
+        """Get url words as string"""
+        if not self.url_words:
+            return ''
+        return ';'.join(self.url_words)
 
 @dataclass_json
 @dataclass
