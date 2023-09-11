@@ -17,6 +17,7 @@ import tiktoken
 import backend.llm.prompts as prompts
 from backend.llm.refine import RefineChain
 from backend.text_processing import text_to_paragraphs
+from backend.base_classes import TopicDefinition
 from utils import get_llm_json
 
 @dataclass
@@ -139,7 +140,7 @@ class LLMManager():
         """Remove dagerous chars from text"""
         return text.replace("“", "'").replace("“", "”").replace("\"", "'")
     
-    def score_topics(self, url : str, paragraph_list : list[str], topic_chunks : any) -> ScoreTopicsResult:
+    def score_topics(self, url : str, paragraph_list : list[str], topic_chunks : list[list[TopicDefinition]]) -> ScoreTopicsResult:
         """Score all topics"""
 
         result_score = {}
@@ -151,7 +152,7 @@ class LLMManager():
 
         for i, p in enumerate(paragraph_list):
             for j, topic_def in enumerate(topic_chunks):
-                topics_for_prompt = "\n".join([f'{t[0]}. {t[2]}' if len(t[2])>0 else f'{t[0]}. {t[1]}' for t in topic_def])
+                topics_for_prompt = "\n".join([f'{t.id}. {t.description}' for t in topic_def])
 
                 self.report_status(f'Request LLM to score paragraph: {i+1}/{len(paragraph_list)}, topics chunk: {j+1}/{len(topic_chunks)}...')
                 try:

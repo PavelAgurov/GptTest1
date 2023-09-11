@@ -5,7 +5,7 @@
 import pandas as pd
 from dataclasses import dataclass
 
-from backend.base_classes import ScoreResultItem
+from backend.base_classes import ScoreResultItem, TopicDefinition
 
 @dataclass
 class BulkOutputParams:
@@ -16,7 +16,7 @@ class BulkOutputParams:
 class BulkOutput():
     """Class to build output data"""
 
-    def create_data(self, topic_list : any, bulk_result : list[ScoreResultItem], params : BulkOutputParams) -> pd.DataFrame:
+    def create_data(self, topic_list : list[TopicDefinition], bulk_result : list[ScoreResultItem], params : BulkOutputParams) -> pd.DataFrame:
         """Create output data"""
         bulk_columns = ['URL', 'Input length', 'Extracted length', 'Lang', 'Translated length']
         bulk_columns.extend(['Primary', 'Primary score'])
@@ -28,9 +28,9 @@ class BulkOutput():
         if params.inc_source:
             bulk_columns.extend(['Source text'])
         for topic_item in topic_list:
-            bulk_columns.extend([f'[{topic_item[0]}]{topic_item[1]}'])
+            bulk_columns.extend([f'[{topic_item.id}]{topic_item.name}'])
             if params.inc_explanation:
-                bulk_columns.extend([f'[{topic_item[0]}]Explanation'])
+                bulk_columns.extend([f'[{topic_item.id}]Explanation'])
 
         bulk_data = []
         for row in bulk_result:
@@ -56,8 +56,8 @@ class BulkOutput():
             
             score_data = row.ordered_result_score
             for topic_item in topic_list:
-                if topic_item[0] in score_data:
-                    topic_score = score_data[topic_item[0]]
+                if topic_item.id in score_data:
+                    topic_score = score_data[topic_item.id]
                     bulk_row.extend([topic_score[0]])
                     if params.inc_explanation:
                         bulk_row.extend([topic_score[1]])

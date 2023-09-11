@@ -6,6 +6,14 @@
 from dataclasses import dataclass
 
 @dataclass
+class TopicDefinition:
+    """Topic definision"""
+    id : int
+    name : str
+    description : str
+    url_words : list[str] = None
+
+@dataclass
 class TopicScoreItem:
     """Topic score item"""
     topic_index : int

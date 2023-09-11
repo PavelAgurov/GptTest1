@@ -5,28 +5,28 @@
 # pylint: disable=C0301,C0103,C0303,C0304,C0305,C0411,E1121,R0902,R0903
 
 from topics import TOPICS_LIST
-
-url_words : dict[int, int] = {
-    "intervals": 6, # Our science
-    "science"  : 6,
-    "job-opportunities": 11, # Job
-    "job-remotely": 11,
-   "job-details": 11,
-   "job-interview": 11,
-}
+from backend.base_classes import TopicDefinition
 
 
 class TopicManager():
     """Topic manager"""
 
-    topic_chunks : any
+    topic_chunks : list[list[TopicDefinition]]
     topic_dict   : dict[int, str]
+    url_words    : dict[str, int]
 
     def __init__(self):
         self.topic_chunks = [TOPICS_LIST] # utils.grouper(TOPICS_LIST, 4)
-        self.topic_dict = {t[0]:t[1] for t in TOPICS_LIST}
+        self.topic_dict = {t.id:t.name for t in TOPICS_LIST}
+        
+        self.url_words = dict[str, int]()
+        for topic in TOPICS_LIST:
+            if not topic.url_words:
+                continue
+            for word in topic.url_words:
+                self.url_words[word] = topic.id
 
-    def get_topic_chunks(self) -> any:
+    def get_topic_chunks(self) -> list[list[TopicDefinition]]:
         """Get topic chunks"""
         return self.topic_chunks
     
@@ -36,12 +36,12 @@ class TopicManager():
     
     def get_topic_by_url(self, url : str) -> int:
         """Check if URL is relevant to some topic"""
-        for url_word in url_words.items():
-            if url_word[0] in url:
-                return url_word[1]
+        for url_word_item in self.url_words.items():
+            if url_word_item[0] in url:
+                return url_word_item[1]
         return None
     
-    def  get_topic_list(self) -> any:
+    def get_topic_list(self) -> list[TopicDefinition]:
         """Return all topics"""
         return TOPICS_LIST
 
