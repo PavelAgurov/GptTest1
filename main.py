@@ -14,21 +14,23 @@ from utils_streamlit import streamlit_hack_remove_top_space
 from backend.backend_core import BackEndCore, BackendParams, BackendCallbacks
 from backend.base_classes import MainTopics, ScoreResultItem
 from backend.bulk_output import BulkOutputParams
-from sitemap_utils import sitemap_load, SitemapResult
+from backend.topic_manager import TopicManager, TopicDefinition
+from sitemap_utils import sitemap_load
 
 # https://discuss.streamlit.io/t/watching-custom-folders/1507/4
 os.environ['PYTHONPATH'] = ';'.join([r"backend", r"backend\\llm"])
 
 COST_1K = 0.002
 OUTPUT_DATA_FILE = "result.csv"
+OUTPUT_TOPIC_FILE = "topics.csv"
 FOOTER_LIST = ['Quick links']
 
 # --------------------------------- Sessions
 
 SESSION_TOKEN_COUNT = 'token_count'
+
 if SESSION_TOKEN_COUNT not in st.session_state:
     st.session_state[SESSION_TOKEN_COUNT] = 0
-
 # ------------------------------- UI
 
 MODE_ONE   = 'One URL'
@@ -40,7 +42,7 @@ st.set_page_config(page_title="PMI Topics Demo", layout="wide")
 st.title('PMI Topics Demo')
 streamlit_hack_remove_top_space()
 
-tab_process, tab_settings, tab_debug = st.tabs(["Process URL(s)", "Settings", "Debug"])
+tab_process, tab_settings, tab_topic_editor, tab_debug = st.tabs(["Process URL(s)", "Settings", "Topics", "Debug"])
 
 with tab_process:
     mode_selector              = st.radio(label="Mode", options=[MODE_ONE, MODE_BULK, MODE_EXCEL, MODE_SITEMAP], index=0, horizontal=True, label_visibility="hidden")
@@ -89,6 +91,14 @@ with tab_process:
 with tab_settings:
     open_api_key = st.text_input("OpenAPI Key: ", "", key="open_api_key")
     footer_texts = st.text_area("Footers", value= '\n'.join(FOOTER_LIST))
+
+with tab_topic_editor:
+    topic_editor_container = st.container()
+    topic_editor_info = st.empty()
+    topic_editor_control = None
+    col_te_1, col_te_2 = st.columns([60, 10])
+    export_topic_editor_container = col_te_1.empty()
+    topics_reset_button = col_te_2.button(label="Reset all topics")
 
 with tab_debug:
     if mode_selector == MODE_ONE:
@@ -181,6 +191,24 @@ def show_topics_score_callback(result_list : list): # TODO - replace list to the
     df = df.sort_values(by=['Score'], ascending=False)
     output_container.dataframe(df, use_container_width=True, hide_index=True)
 
+def update_topic_editor(updated_editor : pd.DataFrame, topic_manager: TopicManager):
+    """Changed data in topic editor"""
+    saved_editor = pd.DataFrame([[t.id, t.name, t.description] for t in topic_manager.get_topic_list()], columns=["Id", "Name", "Description"])
+    if saved_editor is not None and updated_editor.equals(saved_editor):
+        return
+    updated = [TopicDefinition(*row) for row in updated_editor.values.tolist()]
+    topic_manager.save_topic_descriptions(updated)
+
+def show_topic_editor(topic_manager : TopicManager):
+    """Show topic editor"""
+    data = pd.DataFrame([[t.id, t.name, t.description] for t in topic_manager.get_topic_list()], columns=["Id", "Name", "Description"])
+    editor_control = topic_editor_container.data_editor(
+        data,
+        disabled= ["Id", "Name"],
+        use_container_width=True,
+        hide_index=True
+    )
+    return editor_control
 
 @st.cache_data
 def convert_df_to_csv(df_csv : pd.DataFrame):
@@ -193,7 +221,44 @@ if open_api_key:
 else:
     LLM_OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
 
+backend_params = BackendParams(
+    LLM_OPENAI_API_KEY,
+    BackendCallbacks(
+        report_status,
+        report_substatus,
+        used_tokens_callback,
+        show_original_text_callback,
+        report_error_callback,
+        show_summary_callback,
+        show_lang_callback,
+        show_extracted_text_callback,
+        show_debug_json_callback,
+        show_main_topics_callback,
+        show_topics_score_callback
+    ),
+    score_by_summary_checkbox,
+    footer_texts.split('\n')
+)
+
+back_end = BackEndCore(backend_params)
+
+topic_editor_control = show_topic_editor(back_end.topic_manager)
+update_topic_editor(topic_editor_control, back_end.topic_manager)
+
 show_total_tokens()
+
+if topics_reset_button:
+    back_end.topic_manager.reset_all_topics()
+    st.experimental_rerun()
+
+csv_topic_data = convert_df_to_csv(topic_editor_control)
+export_topic_editor_container.download_button(
+    label='Download Topic Data', 
+    data = csv_topic_data,  
+    file_name= OUTPUT_TOPIC_FILE, 
+    mime='text/csv', 
+    on_click= skip_callback
+)
 
 if not run_button:
     st.stop()
@@ -231,26 +296,6 @@ else:
         input_url_list = input_url_list[:site_map_limit] # apply max
     sitemap_data_status.markdown(f'Loaded {len(input_url_list)} URLs (total count: {site_map_total_count})')
 
-backend_params = BackendParams(
-    LLM_OPENAI_API_KEY,
-    BackendCallbacks(
-        report_status,
-        report_substatus,
-        used_tokens_callback,
-        show_original_text_callback,
-        report_error_callback,
-        show_summary_callback,
-        show_lang_callback,
-        show_extracted_text_callback,
-        show_debug_json_callback,
-        show_main_topics_callback,
-        show_topics_score_callback
-    ),
-    score_by_summary_checkbox,
-    footer_texts.split('\n')
-)
-
-back_end = BackEndCore(backend_params)
 bulk_result : list[ScoreResultItem] = back_end.run(input_url_list)
 
 if mode_selector == MODE_ONE or bulk_result is None:

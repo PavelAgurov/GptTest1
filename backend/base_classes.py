@@ -4,7 +4,9 @@
 # pylint: disable=C0301,C0103,C0303,C0304,C0305,C0411,E1121,R0902,R0903
 
 from dataclasses import dataclass
+from dataclasses_json import dataclass_json
 
+@dataclass_json
 @dataclass
 class TopicDefinition:
     """Topic definision"""
@@ -12,6 +14,12 @@ class TopicDefinition:
     name : str
     description : str
     url_words : list[str] = None
+
+@dataclass_json
+@dataclass
+class TopicList:
+    """List of topics"""
+    topics : list[TopicDefinition]
 
 @dataclass
 class TopicScoreItem:
