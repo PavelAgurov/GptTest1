@@ -3,6 +3,7 @@
 """
 # pylint: disable=C0301,C0103,C0303,C0304,C0305,C0411,E1121,R0903
 
+from dataclasses import dataclass
 import tiktoken
 import traceback
 from langchain import PromptTemplate
@@ -10,17 +11,15 @@ from langchain.chains import LLMChain
 from langchain.callbacks import get_openai_callback
 from langchain.chat_models import ChatOpenAI
 
-from utils import get_llm_json
+from utils import parse_llm_xml
 
 refine_initial_prompt_template = """\
 
 Write a concise summary of the text (delimited with XML tags).
-Please provide result in JSON format:
-{{
-    "summary": "summary here"
-}}
-
-Escape all double-quote characters within string output with backslash.
+Please provide result in XML format:
+<summary>
+    summary here
+</summary>
 
 <text>
 {text}
@@ -31,13 +30,13 @@ refine_combine_prompt_template = """\
 Your job is to produce a final summary. We have provided an existing summary up to a certain point (delimited with XML tags).
 We have the opportunity to refine the existing summary (only if needed) with some more context (delimited with XML tags).
 Given the new context, refine the original summary (only if new context is useful) otherwise say that it's not useful.
-Please provide result in JSON format:
-{{
-    "not_useful": "True if new context was not useful, False if new content was used",
-    "refined_summary": "refined summary here if new context was useful"
-}}
-
-Escape all double-quote characters within string output with backslash.
+Please provide result in XML format:
+<not_useful>
+    True if new context was not useful, False if new content was used
+</not_useful>
+<refined_summary>
+    Refined summary here if new context was useful
+</refined_summary>
 
 <existing_summary>
 {existing_summary}
@@ -48,17 +47,13 @@ Escape all double-quote characters within string output with backslash.
 </more_context>
 """
 
-class RefineResult():
+@dataclass
+class RefineResult:
     """Result of refine"""
     summary : str
     tokens_used : int
     error : str
     steps : []
-    def __init__(self, summary : str, tokens_used : int, error : str = None, steps : [] = None):
-        self.summary = summary
-        self.tokens_used = tokens_used
-        self.error = error
-        self.steps = steps
 
 class RefineChain():
     """Refine chain"""
@@ -114,8 +109,8 @@ class RefineChain():
             tokens_used += cb.total_tokens
             steps.append(summary_result)
 
-            summary_json = get_llm_json(summary_result)
-            summary = summary_json["summary"]
+            summary_xml = parse_llm_xml(summary_result, ["summary"])
+            summary = summary_xml["summary"]
             current_index = new_index+1
 
             for _ in range(len(sentence_list)):
@@ -139,17 +134,17 @@ class RefineChain():
                     steps.append(error)
 
                 if refine_result:
-                    refined_json = get_llm_json(refine_result)
-                    refined_useful = not refined_json["not_useful"]
+                    refined_xml = parse_llm_xml(refine_result, ["not_useful", "refined_summary"])
+                    refined_useful = not refined_xml["not_useful"]
                     if refined_useful:
-                        summary = refined_json["refined_summary"]
+                        summary = refined_xml["refined_summary"]
 
                 current_index = new_index+1
                 if new_index >= len(sentence_list):
                     break
             
-            return RefineResult(summary, tokens_used, steps = steps)
+            return RefineResult(summary, tokens_used, None, steps)
         except Exception as error: # pylint: disable=W0718
             steps.append(error)
             print(f'Error: {error}. Track: {traceback.format_exc()}')
-            return RefineResult(summary, tokens_used, error= error, steps = steps)
+            return RefineResult(summary, tokens_used, error, steps)

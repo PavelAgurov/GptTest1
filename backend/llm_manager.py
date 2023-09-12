@@ -109,6 +109,7 @@ class LLMManager():
         """Create summary by refining"""
         self.report_status('Request LLM for summary...')
         refine_result = RefineChain(self.llm_summary).refine(text, self.MAX_MODEL_TOKENS - self.MAX_TOKENS_SUMMARY)
+        print(refine_result.steps)
         summary = ""
         if not refine_result.error:
             summary = refine_result.summary
