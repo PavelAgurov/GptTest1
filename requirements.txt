@@ -8,6 +8,4 @@ sentence-transformers
 ndg-httpsclient
 pyopenssl
 pyasn1
-Redlines
-beautifulsoup4
 unstructured

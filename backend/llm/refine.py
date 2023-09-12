@@ -65,7 +65,7 @@ class RefineChain():
     refine_initial_chain : LLMChain
     refine_combine_chain : LLMChain
     token_estimator : tiktoken.core.Encoding
-    TOKEN_BUFFER = 100
+    TOKEN_BUFFER = 150
 
     def __init__(self, llm : ChatOpenAI):
         if llm:
@@ -128,6 +128,7 @@ class RefineChain():
                 )
                 steps.append(f'Process doc {current_index}:{new_index}')
                 
+                refine_result = None
                 try: # if not possible - we will ignore step and try next one
                     current_doc = '.'.join(sentence_list[current_index:new_index])
                     with get_openai_callback() as cb:
@@ -137,10 +138,11 @@ class RefineChain():
                 except Exception as error: # pylint: disable=W0718
                     steps.append(error)
 
-                refined_json = get_llm_json(refine_result)
-                refined_useful = not refined_json["not_useful"]
-                if refined_useful:
-                    summary = refined_json["refined_summary"]
+                if refine_result:
+                    refined_json = get_llm_json(refine_result)
+                    refined_useful = not refined_json["not_useful"]
+                    if refined_useful:
+                        summary = refined_json["refined_summary"]
 
                 current_index = new_index+1
                 if new_index >= len(sentence_list):

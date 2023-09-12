@@ -68,6 +68,7 @@ with tab_process:
         input_sitemap  = col_sm1.text_input("Sitemap URL: ", "", key="input")
         site_map_from  = col_sm2.number_input("From:", min_value=1, max_value= 10000, value=1)
         site_map_limit = col_sm3.number_input("Max count ('0' means 'no limit'):", min_value=0, max_value= 10000, value=100)
+        sime_map_exluded = st.text_area(label="Excluded URL prefixes:", value="https://www.pmi.com/markets")
         sitemap_data_status = st.empty()
 
     _, col_button = st.columns([10, 1])
@@ -287,7 +288,8 @@ else:
     if not input_sitemap:
         report_status('Sitemap URL was not provided')
         st.stop()
-    sitemap_result = sitemap_load(input_sitemap)
+    sime_map_exluded_list = sime_map_exluded.split()
+    sitemap_result = sitemap_load(input_sitemap, sime_map_exluded_list)
     if sitemap_result.error:
         sitemap_data_status.markdown(f'ERROR: {sitemap_result.error}')
         st.stop()

@@ -1,6 +1,7 @@
 """
     Sitemap utils
 """
+# pylint: disable=C0301,C0103,C0303,C0304,C0305,C0411,E1121
 
 import re
 from dataclasses import dataclass
@@ -13,7 +14,15 @@ class SitemapResult:
     url_list : list[str]
     error    : str
 
-def __get_urlset(url : str) -> list[str]:
+def __is_excluded(url : str, excluded_list : list[str]) -> bool:
+    """Is URL excluded?"""
+    for excluded_item in excluded_list:
+        if url.startswith(excluded_item):
+            return True
+    return False
+
+def __get_urlset(url : str, excluded_list : list[str]) -> list[str]:
+    """"Read sitemap"""
     with urllib.request.urlopen(url) as f:
         site_map = f.read().decode('utf-8')
 
@@ -27,20 +36,21 @@ def __get_urlset(url : str) -> list[str]:
     if tag == 'sitemapindex':
         for url_map in root.findall(f'{{{schema}}}sitemap'):
             loc = url_map.find(f'{{{schema}}}loc').text
-            result.extend(__get_urlset(loc))
+            result.extend(__get_urlset(loc, excluded_list))
         return result
     
     for url_loc in root.findall(f'{{{schema}}}url'):
         loc = url_loc.find(f'{{{schema}}}loc').text
-        result.append(loc)
+        if not __is_excluded(loc, excluded_list):
+            result.append(loc)
         
     return result
 
-def sitemap_load(page_url : str) -> SitemapResult:
+def sitemap_load(page_url : str, excluded_list : list[str]) -> SitemapResult:
     """Load URLs from sitemap"""
     try:
-        urlset = __get_urlset(page_url)
+        urlset = __get_urlset(page_url, excluded_list)
         return SitemapResult(urlset, None)
-    except Exception as error:
+    except Exception as error: # pylint: disable=W0718
         return SitemapResult(None, error)
 

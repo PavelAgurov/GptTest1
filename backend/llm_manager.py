@@ -138,8 +138,8 @@ class LLMManager():
         
     def clean_up(self, text):
         """Remove dagerous chars from text"""
-        return text.replace("“", "'").replace("“", "”").replace("\"", "'")
-    
+        return text.replace("“", "'").replace("“", "”").replace("\"", "'").replace("«", "'").replace("»", "'")
+
     def score_topics(self, url : str, paragraph_list : list[str], topic_chunks : list[list[TopicDefinition]]) -> ScoreTopicsResult:
         """Score all topics"""
 
