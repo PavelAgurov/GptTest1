@@ -38,6 +38,11 @@ MODE_BULK  = 'Bulk mode'
 MODE_EXCEL = 'Load from excel'
 MODE_SITEMAP = 'From Sitemap'
 
+EXCLUDED_URLS = [
+    "https://www.pmi.com/markets",
+    "https://www.pmi.com/markets/egypt/ar"
+]
+
 st.set_page_config(page_title="PMI Topics Demo", layout="wide")
 st.title('PMI Topics Demo')
 streamlit_hack_remove_top_space()
@@ -68,7 +73,7 @@ with tab_process:
         input_sitemap  = col_sm1.text_input("Sitemap URL: ", "", key="input")
         site_map_from  = col_sm2.number_input("From:", min_value=1, max_value= 10000, value=1)
         site_map_limit = col_sm3.number_input("Max count ('0' means 'no limit'):", min_value=0, max_value= 10000, value=100)
-        sime_map_exluded = st.text_area(label="Excluded URL prefixes:", value="https://www.pmi.com/markets")
+        sime_map_exluded = st.text_area(label="Excluded URL prefixes:", value='\n'.join(EXCLUDED_URLS))
         sitemap_data_status = st.empty()
 
     _, col_button = st.columns([10, 1])
