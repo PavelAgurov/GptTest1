@@ -39,8 +39,8 @@ MODE_EXCEL = 'Load from excel'
 MODE_SITEMAP = 'From Sitemap'
 
 EXCLUDED_URLS = [
-    "https://www.pmi.com/markets",
-    "https://www.pmi.com/markets/egypt/ar"
+    "https://www.pmi.com/markets/egypt/ar",
+    "https://www.pmi.com/protected-area"
 ]
 
 st.set_page_config(page_title="PMI Topics Demo", layout="wide")

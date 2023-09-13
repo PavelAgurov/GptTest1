@@ -7,3 +7,4 @@ result.xlsx
 /backend/__pycache__
 /backend/llm/__pycache__
 .topics/topics.json
+.env
