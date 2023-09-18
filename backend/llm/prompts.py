@@ -26,7 +26,7 @@ When article can be considered as related to the topic, but does not provide any
 Exceptions are topics related to a regulation, a science or job - they can be primary even with small score.
 
 Choose the two most relevant and least abstract topics as major and minor topics and determine their relevance.
-Add explanation why you choose it as primary and secondary topics.
+Add a detailed explanation of why you chose this particular topic as your major and minor, and not vice versa.
 Do not just use previously calculated scores, think about it one more time.
 
 Think about it step by step:

@@ -8,3 +8,5 @@ result.xlsx
 /backend/llm/__pycache__
 .topics/topics.json
 .env
+/.tiktoken-cache
+/backend/html_processors/__pycache__

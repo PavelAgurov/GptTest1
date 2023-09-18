@@ -11,7 +11,7 @@ import streamlit as st
 
 import strings
 from utils_streamlit import streamlit_hack_remove_top_space
-from backend.backend_core import BackEndCore, BackendParams, BackendCallbacks
+from backend.backend_core import BackEndCore, BackendParams, BackendCallbacks, ReadModeHTML
 from backend.base_classes import MainTopics, ScoreResultItem
 from backend.bulk_output import BulkOutputParams
 from backend.topic_manager import TopicManager, TopicDefinition
@@ -55,6 +55,15 @@ with tab_process:
     inc_source_checbox         = col_s1.checkbox(label= "Include source in bulk output", disabled= mode_selector == MODE_ONE)
     inc_explanation_checkbox   = col_s2.checkbox(label= "Include explanation in bulk output", disabled= mode_selector == MODE_ONE)
     score_by_summary_checkbox  = col_s3.checkbox(label= "Score by summary", value=True)
+
+    read_mode_list = [e.value for e in ReadModeHTML]
+    read_mode = st.radio(
+            "HTML Read mode:",
+            key="html_read_mode",
+            options= read_mode_list,
+            index=2,
+            horizontal=True
+    )
 
     if mode_selector == MODE_ONE:
         input_url_one = st.text_input("URL: ", "", key="input")
@@ -305,7 +314,7 @@ else:
         input_url_list = input_url_list[:site_map_limit] # apply max
     sitemap_data_status.markdown(f'Loaded {len(input_url_list)} URLs (total count: {site_map_total_count})')
 
-bulk_result : list[ScoreResultItem] = back_end.run(input_url_list)
+bulk_result : list[ScoreResultItem] = back_end.run(input_url_list, read_mode)
 
 if mode_selector == MODE_ONE or bulk_result is None:
     st.stop()

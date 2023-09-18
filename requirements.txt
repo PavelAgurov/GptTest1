@@ -1,11 +1,10 @@
 langchain
 openai
 streamlit
-streamlit-chat
-pinecone-client
 tiktoken
 sentence-transformers
 ndg-httpsclient
 pyopenssl
 pyasn1
 unstructured
+beautifulsoup4

@@ -3,9 +3,11 @@
 """
 # pylint: disable=C0301,C0103,C0303,C0304,C0305,C0411,E1121,R0902,R0903
 
+from enum import Enum
 from dataclasses import dataclass
 import collections
 from unstructured.partition.html import partition_html
+import urllib
 import pandas as pd
 
 from backend.llm_manager import LLMManager, LlmCallbacks, ScoreTopicsResult, TranslationResult
@@ -13,6 +15,13 @@ from backend.text_processing import text_extractor
 from backend.topic_manager import TopicManager
 from backend.base_classes import TopicScoreItem, MainTopics, ScoreResultItem
 from backend.bulk_output import BulkOutput, BulkOutputParams
+from backend.html_processors.bs4_processor import get_plain_text_bs4
+
+class ReadModeHTML(Enum):
+    """Types of HTML reading"""
+    PARTITION = 'By unstructured.partition'
+    BS4       = 'By bs4'
+    MIXED     = 'Mixed'
 
 @dataclass
 class BackendCallbacks:
@@ -68,12 +77,32 @@ class BackEndCore():
         """Report second line of status"""
         self.backend_params.callbacks.report_substatus_callback(substatus_str)
 
-    def load_html(self, url : str) -> str:
+    def load_html(self, url : str, loading_mode_bs : ReadModeHTML) -> str:
         """Load HTML"""
-        elements = partition_html(url=url)
-        return "\n\n".join([str(el) for el in elements])
+        # based on partition_html
+        result1 = ''
+        if loading_mode_bs in [ReadModeHTML.PARTITION.value, ReadModeHTML.MIXED.value]:
+            elements = partition_html(url = url)
+            result1 = "\n\n".join([str(el).strip() for el in elements])
 
-    def run(self, url_list : list[str]) -> list[ScoreResultItem]:
+        # based on BS4
+        result2 = ''
+        if loading_mode_bs in [ReadModeHTML.BS4.value, ReadModeHTML.MIXED.value]:
+            with urllib.request.urlopen(url) as f:
+                html = f.read()
+            result2 = get_plain_text_bs4(html)
+
+        if loading_mode_bs == ReadModeHTML.PARTITION.value:
+            return result1
+        if loading_mode_bs == ReadModeHTML.BS4.value:
+            return result2
+
+        # mixed mode - return where we have more text
+        if len(result1) > len(result2):
+            return result1
+        return result2
+
+    def run(self, url_list : list[str], read_mode : ReadModeHTML) -> list[ScoreResultItem]:
         """Run process for bulk URLs"""
 
         result_data = list[ScoreResultItem]()
@@ -85,26 +114,27 @@ class BackEndCore():
                 self.report_status(f'Processing URL [url: {index+1}/{len(url_list)}] {url}...')
             else:
                 self.report_status(f'Processing URL {url}...')
-            result_data.append(self.run_one(url))
+            result_data.append(self.run_one(url, read_mode))
             if len(url_list) > 1:
                 self.report_substatus('')
 
         self.report_status('Done')
         return result_data
 
-    def run_one(self, url : str) -> ScoreResultItem:
+    def run_one(self, url : str, read_mode : ReadModeHTML) -> ScoreResultItem:
         """"Run process for one URL"""
 
         topic_dict : dict[int, str] = self.topic_manager.get_topic_dict()
 
         # load text from URL
         self.report_substatus('Fetch data from URL...')
+        print('---------------------------------------')
         print(f'Fetch data from URL [{url}]')
         
         input_text = ''
         input_text_len = 0
         try:
-            input_text = self.load_html(url)
+            input_text = self.load_html(url, read_mode)
             input_text_len = len(input_text)
             self.report_substatus(f'Done. Got {input_text_len} chars.')
         except Exception: # pylint: disable=W0718

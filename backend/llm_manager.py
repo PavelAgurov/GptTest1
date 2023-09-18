@@ -2,6 +2,7 @@
 
 # pylint: disable=C0301,C0103,C0303,C0304,C0305,C0411,E1121
 
+import os
 from dataclasses import dataclass
 import traceback
 
@@ -62,10 +63,16 @@ class LLMManager():
     FIRST_PARAGRAPH_MAX_TOKEN = 200 # small text to check language
     MAX_TOKENS_TRANSLATION    = 1000
 
+    _TIKTOKEN_CACHE_DIR = ".tiktoken-cache"
+
     def __init__(self, open_api_key : str, callbacks: LlmCallbacks):
         self.callbacks = callbacks
 
         langchain.llm_cache = SQLiteCache()
+
+        # https://github.com/openai/tiktoken/issues/75
+        os.makedirs(self._TIKTOKEN_CACHE_DIR, exist_ok=True)
+        os.environ["TIKTOKEN_CACHE_DIR"] = self._TIKTOKEN_CACHE_DIR
 
         llm_translation = ChatOpenAI(
             model_name     = self.MODEL_NAME, 
@@ -109,7 +116,10 @@ class LLMManager():
         """Create summary by refining"""
         self.report_status('Request LLM for summary...')
         refine_result = RefineChain(self.llm_summary).refine(text, self.MAX_MODEL_TOKENS - self.MAX_TOKENS_SUMMARY)
-        print(refine_result.steps)
+
+        for step in refine_result.steps:
+            print(step)
+        print('-------------------------------------------------')
         summary = ""
         if not refine_result.error:
             summary = refine_result.summary

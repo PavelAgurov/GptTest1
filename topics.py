@@ -24,7 +24,7 @@ TOPICS_LIST : list[TopicDefinition] = [
    TopicDefinition(
       4,
       "Leadership content",
-      "Centers on leadership within company, covering leadership principles, strategies, and insights from thought leaders, including articles, interviews, and perspectives, while also discussing effective communication, decision-making, team management, and inspiration."
+      "Centers on leadership within company or content and citates from company leaders, covering leadership principles, strategies, and insights from thought leaders, including articles, interviews, and perspectives, while also discussing effective communication, decision-making, team management, and inspiration."
    ),
    TopicDefinition(
       5,
