@@ -316,6 +316,7 @@ else:
         input_url_list = input_url_list[:site_map_limit] # apply max
     sitemap_data_status.markdown(f'Loaded {len(input_url_list)} URLs (total count: {site_map_total_count})')
 
+input_url_list = [u for u in input_url_list if len(u)> 0 and not u.startswith('#')]
 bulk_result : list[ScoreResultItem] = back_end.run(input_url_list, read_mode)
 
 if mode_selector == MODE_ONE or bulk_result is None:

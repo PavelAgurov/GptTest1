@@ -48,10 +48,20 @@ def get_gold_data() -> GoldData:
 
     gold_data = list[GoldDataItem]()
     for row in gold_data_excel.values:
+        url = strip_str(row[0])
+        if not url: # allow empty lines
+            continue
+        if url.startswith('#'): # allow comments in the file
+            continue
+        primary   = strip_str(row[1]) # line without data
+        secondary = strip_str(row[2])
+        if not primary and not secondary:
+            continue
+
         gold_data.append(GoldDataItem(
-            strip_str(row[0]),
-            strip_str(row[1]),
-            strip_str(row[2])
+            url,
+            primary,
+            secondary
         ))
 
     error = None
