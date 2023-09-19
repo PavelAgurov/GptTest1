@@ -13,6 +13,8 @@ from langchain.chat_models import ChatOpenAI
 
 from utils import parse_llm_xml
 
+USE_EXTRA_FACT_EXTRACTION = True
+
 @dataclass
 class RefineResult:
     """Result of refine"""
@@ -37,11 +39,15 @@ Summary here
 </text>
 """
 
+# Your job is to produce a final summary. We have provided an existing summary up to a certain point (delimited with XML tags).
+# We have the opportunity to refine the existing summary (only if needed) with some more context (delimited with XML tags).
+# Given the new context, refine the original summary (only if new context is useful) otherwise say that it's not useful.
+# Try to extract as much as possible information from new context and combine it in useful summary with existed summary.
+
 refine_combine_prompt_template = """\
-Your job is to produce a final summary. We have provided an existing summary up to a certain point (delimited with XML tags).
-We have the opportunity to refine the existing summary (only if needed) with some more context (delimited with XML tags).
-Given the new context, refine the original summary (only if new context is useful) otherwise say that it's not useful.
-Try to extract as much as possible information from new context.
+You are professional linguist. 
+Your job is to produce a final summary from existed summary (delimited with XML tags) and some new context (delimited with XML tags).
+If new conext is not useful, just say that it's not useful.
 
 Please provide result in XML format:
 <not_useful>
@@ -67,9 +73,9 @@ Who are they? What does the text say about them? What role do they play in the t
 Do not make up information, use only information from provided text.
 If the text does not contain any facts just say "No facts".
 
-Please provide result in XML format:
+Please save result here:
 <personal_information>
-Extracted facts about persons.
+Extracted facts about persons in simple text form or say "no facts".
 </personal_information>
 
 <text>
@@ -165,10 +171,17 @@ class RefineChain():
                     steps.extend(refine_initial_result.steps)
                     summary = refine_initial_result.summary
 
-                    # # fact extraction from first summary
-                    # fact_extraction_result = self.execute_fact_extraction(current_doc)
-                    # tokens_used += fact_extraction_result.tokens_used
-                    # steps.extend(fact_extraction_result.steps)
+                    # fact extraction from first summary
+                    if USE_EXTRA_FACT_EXTRACTION:
+                        fact_extraction_result = self.execute_fact_extraction(current_doc)
+                        tokens_used += fact_extraction_result.tokens_used
+                        steps.extend(fact_extraction_result.steps)
+                        if len(fact_extraction_result.facts) > 0:
+                            refine_fact_result = self.execute_refine_step(summary, fact_extraction_result.facts)
+                            tokens_used += refine_fact_result.tokens_used
+                            steps.extend(refine_fact_result.steps)
+                            if refine_fact_result.useful:
+                                summary = refine_fact_result.new_summary
 
                     current_index = new_index+1
                     if new_index >= len(sentence_list):
@@ -192,10 +205,11 @@ class RefineChain():
 
                 current_doc = '.'.join(sentence_list[current_index:new_index])
 
-                # # fact extraction from first summary
-                # fact_extraction_result = self.execute_fact_extraction(current_doc)
-                # tokens_used += fact_extraction_result.tokens_used
-                # steps.extend(fact_extraction_result.steps)
+                # # fact extraction
+                # if USE_EXTRA_FACT_EXTRACTION:
+                #     fact_extraction_result = self.execute_fact_extraction(current_doc)
+                #     tokens_used += fact_extraction_result.tokens_used
+                #     steps.extend(fact_extraction_result.steps)
 
                 refine_step_result = self.execute_refine_step(summary, current_doc)
                 tokens_used += refine_step_result.tokens_used
@@ -218,6 +232,8 @@ class RefineChain():
         tokens_used    = 0
         steps          = list[str]()
         summary        = ''
+
+        steps.append('------- execute_initial_refine')
 
         refine_initial_result  = None
         try:
@@ -242,6 +258,8 @@ class RefineChain():
         steps          = list[str]()
         summary        = ''
 
+        steps.append('------- execute_refine_step')
+
         refine_step_result  = None
         try:
             with get_openai_callback() as cb:
@@ -253,9 +271,10 @@ class RefineChain():
 
         if refine_step_result:
             refined_xml = parse_llm_xml(refine_step_result, ["not_useful", "refined_summary"])
-            refined_useful = not refined_xml["not_useful"]
+            refined_summary = refined_xml["refined_summary"]
+            refined_useful  = refined_xml["not_useful"].lower().strip() != "true"
             if refined_useful:
-                summary = refined_xml["refined_summary"]
+                summary = refined_summary
 
         return RefineStepResult(summary, tokens_used, refined_useful, steps)
 
@@ -265,6 +284,8 @@ class RefineChain():
         tokens_used = 0
         facts       = ''
         steps       = list[str]()
+
+        steps.append('------- execute_fact_extraction')
 
         # fact extraction
         fact_result = None
@@ -278,8 +299,9 @@ class RefineChain():
         if fact_result:
             fact_xml = parse_llm_xml(fact_result, ["personal_information"])
             fact_str = fact_xml["personal_information"]
+            steps.append('Facts:')
             steps.append(fact_str)
-            if "no facts" not in fact_str:
+            if "no facts" not in fact_str.lower():
                 facts = fact_str
 
         return FactExtractionResult(facts, tokens_used, steps)

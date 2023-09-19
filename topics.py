@@ -24,7 +24,7 @@ TOPICS_LIST : list[TopicDefinition] = [
    TopicDefinition(
       4,
       "Leadership content",
-      "Centers on leadership within company or content and citates from company leaders, covering leadership principles, strategies, and insights from thought leaders, including articles, interviews, and perspectives, while also discussing effective communication, decision-making, team management, and inspiration."
+      "Centers on leadership within company, covering leadership principles, strategies, and insights from thought leaders, including articles, interviews, and perspectives, while also discussing effective communication, decision-making, team management, and inspiration."
    ),
    TopicDefinition(
       5,
@@ -50,12 +50,15 @@ TOPICS_LIST : list[TopicDefinition] = [
    TopicDefinition(
       9,
       "Sustainability",
-      "Exploring Environmental, Social, and Governance principles for a greener, more responsible future, encompassing diverse subjects like renewable energy, waste reduction, ethical sourcing, and sustainable development goals."
+#      "Exploring Environmental, Social, and Governance principles for a greener, more responsible future, encompassing diverse subjects like renewable energy, waste reduction, ethical sourcing, and sustainable development goals."
+      "Any aspects of corporate sustainability initiatives including sustainability in supply chain and more responsible future."
    ),
    TopicDefinition(
       10,
       "Regulation",
-      "Focuses on the need for a regulatory framework to encourage smoke-free products, highlighting how governments and public health bodies can regulate these alternatives to promote public health and reduce cigarette sales for a smoke-free future."
+#      "Focuses on the need for a regulatory framework to encourage smoke-free products, highlighting how governments and public health bodies can regulate these alternatives to promote public health and reduce cigarette sales for a smoke-free future.",
+     "Explores strict regulations and enforcement on tobacco products, emphasizing the importance of innovation in smoke-free alternatives to address smoking-related harm while protecting public health.",
+     ["regulators"]
    ),
    TopicDefinition(
       11,
@@ -67,5 +70,10 @@ TOPICS_LIST : list[TopicDefinition] = [
       12,
       "Partnership and Engagement",
       "Collaborative efforts, strategic alliances, and community engagement fostering positive impact through meaningful engagement with various external entities."
+   ),
+   TopicDefinition(
+      13,
+      "Top management content",
+      "Experiences and perspectives shared by senior management or top executives of a company, including their roles, strategies, and the impact of their decisions on the company."
    )
 ]
