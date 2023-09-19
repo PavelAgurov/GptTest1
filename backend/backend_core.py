@@ -16,6 +16,7 @@ from backend.topic_manager import TopicManager
 from backend.base_classes import TopicScoreItem, MainTopics, ScoreResultItem
 from backend.bulk_output import BulkOutput, BulkOutputParams
 from backend.html_processors.bs4_processor import get_plain_text_bs4
+from backend.gold_data import get_gold_data
 
 class ReadModeHTML(Enum):
     """Types of HTML reading"""
@@ -51,6 +52,12 @@ class TranslatedParagraphs:
     """Result of translation"""
     lang : str
     paragraphs : list[str]
+
+@dataclass
+class BuildOuputDataResult:
+    """Result of buld data"""
+    data  : pd.DataFrame
+    error : str
 
 class BackEndCore():
     """Main back-end class"""
@@ -330,7 +337,16 @@ class BackEndCore():
 
         return result
 
-    def build_ouput_data(self, bulk_result : list[ScoreResultItem], bulk_output_params : BulkOutputParams) -> pd.DataFrame:
+    def build_ouput_data(self, bulk_result : list[ScoreResultItem], bulk_output_params : BulkOutputParams) -> BuildOuputDataResult:
         """Build output data frame"""
         topic_list = self.topic_manager.get_topic_list()
-        return BulkOutput().create_data(topic_list, bulk_result, bulk_output_params)
+        gold_data  = None
+        if bulk_output_params.inc_gold_data:
+            gold_data = get_gold_data()
+        
+        error = None
+        if gold_data and gold_data.error:
+            error = gold_data.error
+
+        data = BulkOutput().create_data(topic_list, bulk_result, gold_data, bulk_output_params)
+        return BuildOuputDataResult(data, error)

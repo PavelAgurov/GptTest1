@@ -73,7 +73,7 @@ TOPICS_LIST : list[TopicDefinition] = [
    ),
    TopicDefinition(
       13,
-      "Top management content",
-      "Experiences and perspectives shared by senior management or top executives of a company, including their roles, strategies, and the impact of their decisions on the company."
+      "Leadership content",
+      "Any content that mentions senior management or top managers of a company (including SEO, COO, SVP, VP etc.) OR content created by them."
    )
 ]

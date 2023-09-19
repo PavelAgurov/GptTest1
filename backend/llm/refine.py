@@ -183,6 +183,18 @@ class RefineChain():
                             if refine_fact_result.useful:
                                 summary = refine_fact_result.new_summary
 
+
+                    # fact_extraction_result = self.execute_fact_extraction(current_doc)
+                    # tokens_used += fact_extraction_result.tokens_used
+                    # steps.extend(fact_extraction_result.steps)
+                    # if len(fact_extraction_result.facts) == 0:
+                    #     refine_initial_result = self.execute_initial_refine(current_doc)
+                    #     tokens_used += refine_initial_result.tokens_used
+                    #     steps.extend(refine_initial_result.steps)
+                    #     summary = refine_initial_result.summary
+                    # else:
+                    #     summary = fact_extraction_result.facts
+
                     current_index = new_index+1
                     if new_index >= len(sentence_list):
                         break
@@ -301,7 +313,7 @@ class RefineChain():
             fact_str = fact_xml["personal_information"]
             steps.append('Facts:')
             steps.append(fact_str)
-            if "no facts" not in fact_str.lower():
+            if not fact_str.lower().strip().startswith("no facts"):
                 facts = fact_str
 
         return FactExtractionResult(facts, tokens_used, steps)

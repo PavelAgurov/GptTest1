@@ -51,10 +51,11 @@ tab_process, tab_settings, tab_topic_editor, tab_debug = st.tabs(["Process URL(s
 
 with tab_process:
     mode_selector              = st.radio(label="Mode", options=[MODE_ONE, MODE_BULK, MODE_EXCEL, MODE_SITEMAP], index=0, horizontal=True, label_visibility="hidden")
-    col_s1, col_s2, col_s3 = st.columns(3)
+    col_s1, col_s2, col_s3, col_s4 = st.columns(4)
     inc_source_checbox         = col_s1.checkbox(label= "Include source in bulk output", disabled= mode_selector == MODE_ONE)
     inc_explanation_checkbox   = col_s2.checkbox(label= "Include explanation in bulk output", disabled= mode_selector == MODE_ONE)
     score_by_summary_checkbox  = col_s3.checkbox(label= "Score by summary", value=True)
+    add_gold_data_checkbox     = col_s4.checkbox(label= "Add gold data", value=True)
 
     read_mode_list = [e.value for e in ReadModeHTML]
     read_mode = st.radio(
@@ -102,6 +103,7 @@ with tab_process:
     if mode_selector != MODE_ONE:
         export_container = st.empty()
     debug_container = st.container()
+    bulk_error_container = st.empty()
 
 with tab_settings:
     open_api_key = st.text_input("OpenAPI Key: ", "", key="open_api_key")
@@ -322,12 +324,15 @@ if mode_selector == MODE_ONE or bulk_result is None:
 # bulk processing
 bulk_output_params = BulkOutputParams(
     inc_explanation_checkbox,
-    inc_source_checbox
+    inc_source_checbox,
+    add_gold_data_checkbox
 )
-df_bulk = back_end.build_ouput_data(bulk_result, bulk_output_params)
-output_container.dataframe(df_bulk, use_container_width=True, hide_index=True)
+df_bulk_result = back_end.build_ouput_data(bulk_result, bulk_output_params)
+if df_bulk_result.error:
+    bulk_error_container.markdown(df_bulk_result.error)
+output_container.dataframe(df_bulk_result.data, use_container_width=True, hide_index=True)
 
-csv_data = convert_df_to_csv(df_bulk)
+csv_data = convert_df_to_csv(df_bulk_result.data)
 export_container.download_button(
     label='Download Excel', 
     data = csv_data,  
