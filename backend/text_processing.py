@@ -30,7 +30,7 @@ def text_to_paragraphs(extracted_text : str,
         if len(result_paragraph_list) > 0: # first paragpath found
             max_tokens = max_tokens_translation
         token_count_p = len(token_estimator.encode(sencence))
-        if ((current_token_count + token_count_p) < max_tokens):
+        if current_token_count + token_count_p < max_tokens:
             current_paragraph.append(sencence)
             current_token_count = current_token_count + token_count_p
         else:
@@ -40,3 +40,23 @@ def text_to_paragraphs(extracted_text : str,
     if len(current_paragraph) > 0:
         result_paragraph_list.append('\n\n'.join(current_paragraph))
     return result_paragraph_list
+
+def limit_text_tokens(text : str,
+                      token_estimator : tiktoken.core.Encoding,
+                      max_tokens : int
+                    ) -> str:
+    """Limit text by tokens"""
+    result_words = []
+    words = text.split(' ')
+
+    current_token_count = 0
+    for word in words:
+        current_token_count = current_token_count + len(token_estimator.encode(word))
+        if current_token_count >= max_tokens:
+            break
+        result_words.append(word)
+
+    if len(result_words) == 0:
+        return ''
+
+    return ' '.join(result_words)

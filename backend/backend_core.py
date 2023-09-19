@@ -164,7 +164,10 @@ class BackEndCore():
         # translation (if needed)
         translated_paragraphs = self.get_translated_paragraph_list(paragraph_list)
         translated_paragraph_list = translated_paragraphs.paragraphs
-        full_translated_text = '\n'.join(translated_paragraph_list)
+        if translated_paragraph_list:
+            full_translated_text = '\n'.join(translated_paragraph_list)
+        else:
+            full_translated_text = 'Error during translation'
         self.backend_params.callbacks.show_extracted_text_callback(full_translated_text)
 
         self.report_substatus('Run topic score...')
@@ -233,7 +236,7 @@ class BackEndCore():
         self.backend_params.callbacks.show_summary_callback(summary)
 
         if not by_summary:
-            paragraph_list = self.llm.text_to_paragraphs(summary)
+            paragraph_list = self.llm.split_text_to_paragraphs(summary)
         else:
             paragraph_list = [summary]
         
@@ -263,7 +266,12 @@ class BackEndCore():
             self.backend_params.callbacks.show_lang_callback(f'Language of original text: {translated_lang}')
 
             translated_text = translation_result.translation
-            translated_list.append(translated_text)
+            if translated_text:
+                translated_list.append(translated_text)
+            else:
+                no_translation = True
+                self.backend_params.callbacks.report_error_callback('Translation error')
+                break
 
         if no_translation:
             self.backend_params.callbacks.show_lang_callback("Text is in English. No translation needed.")

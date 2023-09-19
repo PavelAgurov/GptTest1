@@ -17,7 +17,7 @@ import tiktoken
 
 import backend.llm.prompts as prompts
 from backend.llm.refine import RefineChain
-from backend.text_processing import text_to_paragraphs
+from backend.text_processing import text_to_paragraphs, limit_text_tokens
 from backend.base_classes import TopicDefinition
 from utils import get_llm_json
 
@@ -59,6 +59,7 @@ class LLMManager():
     MODEL_NAME = "gpt-3.5-turbo"
     MAX_MODEL_TOKENS = 4097 # max token for gpt 3.5
     MAX_TOKENS_SCORE = 2000
+    MAX_TOKENS_SCORE_TEXT = 1500
     MAX_TOKENS_SUMMARY = 2500
     FIRST_PARAGRAPH_MAX_TOKEN = 200 # small text to check language
     MAX_TOKENS_TRANSLATION    = 1000
@@ -129,7 +130,7 @@ class LLMManager():
         self.report_status('Refining is done')
         return summary
 
-    def text_to_paragraphs(self, text : str) -> list[str]:
+    def split_text_to_paragraphs(self, text : str) -> list[str]:
         """Split text by paragraphs"""
         return text_to_paragraphs(text, self.token_estimator, self.FIRST_PARAGRAPH_MAX_TOKEN, self.MAX_TOKENS_TRANSLATION)
 
@@ -166,13 +167,23 @@ class LLMManager():
                 topics_for_prompt = "\n".join([f'{t.id}. {t.description}' for t in topic_def])
 
                 self.report_status(f'Request LLM to score paragraph: {i+1}/{len(paragraph_list)}, topics chunk: {j+1}/{len(topic_chunks)}...')
+                extracted_score = None
                 try:
+                    p_text = limit_text_tokens(p, self.token_estimator, self.MAX_TOKENS_SCORE_TEXT) # cut if needed
+                    if len(p_text) != len(p):
+                        print(f'CUT TEXT before score: {len(p)} => {len(p_text)}')
                     with get_openai_callback() as cb:
-                        extracted_score = self.score_chain.run(topics = topics_for_prompt, article = p, url = url)
+                        extracted_score = self.score_chain.run(topics = topics_for_prompt, article = p_text, url = url)
                     total_token_count += cb.total_tokens
                     self.report_status(f'Done. Got {len(extracted_score)} chars.')
                     debug_json_score.append(extracted_score)
+                except Exception as error: # pylint: disable=W0718
+                    error_list.append(f'Error: {error}\n\n{traceback.format_exc()}')
 
+                if not extracted_score:
+                    continue
+
+                try:
                     self.report_status('Extract result...')
                     extracted_score_json = get_llm_json(extracted_score)
                     self.report_status('')
