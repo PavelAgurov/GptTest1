@@ -227,8 +227,9 @@ class BackEndCore():
             
             topic_priority = topic_dict[score_item_topic_index].priority
             if topic_priority and topic_priority > 0:
-                score_item_topic_score = min(score_item_topic_score * topic_priority, 1)
-                score_item_topic_expln = f'{score_item_topic_expln} Priority {topic_priority}.'
+                original_topic_score = score_item_topic_score
+                score_item_topic_score = score_item_topic_score * topic_priority
+                score_item_topic_expln = f'{score_item_topic_expln} Priority {topic_priority}: {original_topic_score:.2f}=>{score_item_topic_score:.2f}.'
                 if score_item_topic_score > PRIORITY_THRESHOLD:
                     priority_topics.append(
                         TopicScoreItem(
@@ -242,7 +243,7 @@ class BackEndCore():
                 TopicScoreItem(
                     topic_dict[score_item_topic_index].id,
                     topic_dict[score_item_topic_index].name,
-                    score_item_topic_score, 
+                    min(score_item_topic_score, 1), 
                     score_item_topic_expln
                 )
             )
@@ -255,6 +256,9 @@ class BackEndCore():
                 main_topics.primary =  priority_topic_candidate
             elif priority_topic_candidate.topic_score > main_topics.secondary.topic_score:
                 main_topics.secondary =  priority_topic_candidate
+
+        main_topics.primary.topic_score = min(main_topics.primary.topic_score, 1)
+        main_topics.secondary.topic_score = min(main_topics.secondary.topic_score, 1)
 
         self.backend_params.callbacks.show_main_topics_callback(main_topics)
         self.backend_params.callbacks.show_topics_score_callback(topics_score_list)
