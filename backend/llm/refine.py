@@ -47,6 +47,7 @@ Summary here
 refine_combine_prompt_template = """\
 You are professional linguist. 
 Your job is to produce a final summary from existed summary (delimited with XML tags) and some new context (delimited with XML tags).
+Most important information is about persons, locations and company - try to save it in summary.
 If new conext is not useful, just say that it's not useful.
 
 Please provide result in XML format:
@@ -54,7 +55,7 @@ Please provide result in XML format:
     True if new context was not useful, False if new content was used
 </not_useful>
 <refined_summary>
-    Refined summary here if new context was useful
+    Refined summary here if new context was useful (not more than 1000 words)
 </refined_summary>
 
 <existing_summary>
@@ -163,7 +164,9 @@ class RefineChain():
                         max_tokens - prompt_len - self.TOKEN_BUFFER, 
                         self.len_function
                     )
-                    steps.append(f'--- Process doc {current_index}:{new_index} / {len(sentence_list)}')
+                    status = f'--- Process doc {current_index}:{new_index} / {len(sentence_list)}'
+                    steps.append(status)
+                    print(status)
                     current_doc = '.'.join(sentence_list[current_index:new_index])
 
                     refine_initial_result = self.execute_initial_refine(current_doc)

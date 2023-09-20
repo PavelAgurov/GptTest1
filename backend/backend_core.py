@@ -13,10 +13,12 @@ import pandas as pd
 from backend.llm_manager import LLMManager, LlmCallbacks, ScoreTopicsResult, TranslationResult
 from backend.text_processing import text_extractor
 from backend.topic_manager import TopicManager
-from backend.base_classes import TopicScoreItem, MainTopics, ScoreResultItem
+from backend.base_classes import TopicScoreItem, MainTopics, ScoreResultItem, TopicDefinition
 from backend.bulk_output import BulkOutput, BulkOutputParams
 from backend.html_processors.bs4_processor import get_plain_text_bs4
 from backend.gold_data import get_gold_data
+
+PRIORITY_THRESHOLD = 0.5
 
 class ReadModeHTML(Enum):
     """Types of HTML reading"""
@@ -131,7 +133,7 @@ class BackEndCore():
     def run_one(self, url : str, read_mode : ReadModeHTML) -> ScoreResultItem:
         """"Run process for one URL"""
 
-        topic_dict : dict[int, str] = self.topic_manager.get_topic_dict()
+        topic_dict : dict[int, TopicDefinition] = self.topic_manager.get_topic_dict()
 
         # load text from URL
         self.report_substatus('Fetch data from URL...')
@@ -195,18 +197,56 @@ class BackEndCore():
                 result_primary_topic_json, 
                 result_secondary_topic_json
         )
-        self.backend_params.callbacks.show_main_topics_callback(main_topics)
-        self.report_substatus('')
 
+        # topics_score_ordered : dict {topic_index: [score of topic, explanation]}
         topics_score_ordered = collections.OrderedDict(sorted(score_topics_result.result_score.items()))
-        topics_score_list = []
+        
+        topics_score_list = list[TopicScoreItem]()
+        priority_topics   = list[TopicScoreItem]()
         for score_item in score_topics_result.result_score.items():
             score_item_topic_index = score_item[0]
-            if score_item_topic_index in topic_dict:
-                topics_score_list.append([topic_dict[score_item_topic_index], *topics_score_ordered[score_item_topic_index]])
-            else:
+            score_item_topic_score = topics_score_ordered[score_item_topic_index][0]
+            score_item_topic_expln = topics_score_ordered[score_item_topic_index][1]
+            if score_item_topic_index not in topic_dict:
                 self.backend_params.callbacks.report_error_callback(topics_score_ordered)
+                continue
+            
+            topic_priority = topic_dict[score_item_topic_index].priority
+            if topic_priority and topic_priority > 0:
+                score_item_topic_score = min(score_item_topic_score * topic_priority, 1)
+                score_item_topic_expln = f'{score_item_topic_expln} Priority {topic_priority}.'
+                if score_item_topic_score > PRIORITY_THRESHOLD:
+                    priority_topics.append(
+                        TopicScoreItem(
+                            score_item_topic_index,
+                            topic_dict[score_item_topic_index].name,
+                            score_item_topic_score,
+                            score_item_topic_expln
+                        ))
+
+            topics_score_list.append(
+                TopicScoreItem(
+                    topic_dict[score_item_topic_index].id,
+                    topic_dict[score_item_topic_index].name,
+                    score_item_topic_score, 
+                    score_item_topic_expln
+                )
+            )
+
+        # process priority
+        if priority_topics:
+            priority_topics = sorted(priority_topics, key=lambda x: x.topic_score, reverse=True)
+            priority_topic_candidate = priority_topics[0]
+            print(priority_topic_candidate)
+            print(main_topics.primary)
+            if priority_topic_candidate.topic_score > main_topics.primary.topic_score:
+                main_topics.primary =  priority_topic_candidate
+            elif priority_topic_candidate.topic_score > main_topics.secondary.topic_score:
+                main_topics.secondary =  priority_topic_candidate
+
+        self.backend_params.callbacks.show_main_topics_callback(main_topics)
         self.backend_params.callbacks.show_topics_score_callback(topics_score_list)
+        self.report_substatus('')
 
         score_result_item : ScoreResultItem = ScoreResultItem(
             url,
@@ -281,7 +321,7 @@ class BackEndCore():
         return TranslatedParagraphs(translated_lang, translated_list)
 
     def  get_main_topics(self,
-                        topic_dict : dict,
+                        topic_dict : dict[str, TopicDefinition],
                         topic_index_by_url : int,
                         result_primary_topic_json : any,
                         result_secondary_topic_json : any) -> MainTopics:
@@ -300,12 +340,12 @@ class BackEndCore():
         primary_topic_is_url = False
         if result_primary_topic_json: # we have primary topic from LLM
             primary_topic_index = result_primary_topic_json['topic_id']
-            primary_topic = topic_dict[primary_topic_index]
+            primary_topic = topic_dict[primary_topic_index].name
             primary_topic_score = result_primary_topic_json['score']
             primary_topic_explanation = result_primary_topic_json['explanation']
         if topic_index_by_url and primary_topic_index != topic_index_by_url: # we have other topic from URL - override
             primary_topic_index = topic_index_by_url
-            primary_topic = topic_dict[primary_topic_index]
+            primary_topic = topic_dict[primary_topic_index].name
             primary_topic_score = 1
             primary_topic_explanation = "Detected from URL"
             primary_topic_is_url = True
@@ -317,14 +357,14 @@ class BackEndCore():
         secondary_topic_explanation = ""
         if result_secondary_topic_json: # secondary topic from LLM
             secondary_topic_index = result_secondary_topic_json['topic_id']
-            secondary_topic = topic_dict[secondary_topic_index]
+            secondary_topic = topic_dict[secondary_topic_index].name
             secondary_topic_score = result_secondary_topic_json['score']
             secondary_topic_explanation = result_secondary_topic_json['explanation']
 
         # if now we have primary the same as secondary, because owerride it by URL-topic - get primary as secondary
         if primary_topic_index == secondary_topic_index and result_primary_topic_json and primary_topic_is_url:
             secondary_topic_index = result_primary_topic_json['topic_id']
-            secondary_topic = topic_dict[secondary_topic_index]
+            secondary_topic = topic_dict[secondary_topic_index].name
             secondary_topic_score = result_primary_topic_json['score']
             secondary_topic_explanation = result_primary_topic_json['explanation']
 

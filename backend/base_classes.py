@@ -15,6 +15,7 @@ class TopicDefinition:
     name : str
     description : str
     url_words : Optional[list[str]] = None
+    priority  : Optional[int] = 0
 
     def get_url_words_str(self) -> str:
         """Get url words as string"""

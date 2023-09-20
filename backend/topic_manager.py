@@ -14,14 +14,14 @@ class TopicManager():
     """Topic manager"""
 
     topic_chunks : list[list[TopicDefinition]]
-    topic_dict   : dict[int, str]
+    topic_dict   : dict[int, TopicDefinition]
     url_words    : dict[str, int]
 
     __DISK_FOLDER = '.topics'
     __TOPIC_FILE = 'topics.json'
 
     def __init__(self):
-        self.topic_dict = {t.id:t.name for t in TOPICS_LIST}
+        self.topic_dict = {t.id:t for t in TOPICS_LIST}
         
         self.url_words = dict[str, int]()
         for topic in TOPICS_LIST:
@@ -42,8 +42,8 @@ class TopicManager():
         """Get topic chunks"""
         return self.topic_chunks
     
-    def get_topic_dict(self) -> dict[int, str]:
-        """Return topic dict [topic_id, topic_name]"""
+    def get_topic_dict(self) -> dict[int, TopicDefinition]:
+        """Return topic dict [topic_id, TopicDefinition]"""
         return self.topic_dict
     
     def get_topic_by_url(self, url : str) -> int:

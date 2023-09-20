@@ -12,7 +12,7 @@ import streamlit as st
 import strings
 from utils_streamlit import streamlit_hack_remove_top_space
 from backend.backend_core import BackEndCore, BackendParams, BackendCallbacks, ReadModeHTML
-from backend.base_classes import MainTopics, ScoreResultItem
+from backend.base_classes import MainTopics, ScoreResultItem, TopicScoreItem
 from backend.bulk_output import BulkOutputParams
 from backend.topic_manager import TopicManager, TopicDefinition
 from sitemap_utils import sitemap_load
@@ -200,11 +200,12 @@ def show_main_topics_callback(main_topics : MainTopics):
     df = pd.DataFrame(main_topics_result, columns = ['#', 'Topic', 'Score', 'Explanation'])
     main_topics_container.dataframe(df, use_container_width=True, hide_index=True)
 
-def show_topics_score_callback(result_list : list): # TODO - replace list to the class
+def show_topics_score_callback(result_list : list[TopicScoreItem]):
     """Show topic score"""
     if mode_selector != MODE_ONE:
         return
-    df = pd.DataFrame(result_list, columns = ['Topic', 'Score', 'Explanation'])
+    output_list = [[r.topic, r.topic_score, r.explanation ]for r in result_list]
+    df = pd.DataFrame(output_list, columns = ['Topic', 'Score', 'Explanation'])
     df = df.sort_values(by=['Score'], ascending=False)
     output_container.dataframe(df, use_container_width=True, hide_index=True)
 
