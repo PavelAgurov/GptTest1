@@ -49,6 +49,7 @@ streamlit_hack_remove_top_space()
 
 tab_process, tab_settings, tab_topic_editor, tab_debug = st.tabs(["Process URL(s)", "Settings", "Topics", "Debug"])
 
+site_map_only = False
 with tab_process:
     mode_selector              = st.radio(label="Mode", options=[MODE_ONE, MODE_BULK, MODE_EXCEL, MODE_SITEMAP], index=0, horizontal=True, label_visibility="hidden")
     col_s1, col_s2, col_s3, col_s4 = st.columns(4)
@@ -80,6 +81,7 @@ with tab_process:
         excel_data_status = st.empty()
     else:
         col_sm1, col_sm2, col_sm3 = st.columns(3)
+        site_map_only  = st.checkbox('Only build sitemap')
         input_sitemap  = col_sm1.text_input("Sitemap URL: ", "", key="input")
         site_map_from  = col_sm2.number_input("From:", min_value=1, max_value= 10000, value=1)
         site_map_limit = col_sm3.number_input("Max count ('0' means 'no limit'):", min_value=0, max_value= 10000, value=100)
@@ -241,6 +243,7 @@ else:
     LLM_OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
 
 backend_params = BackendParams(
+    site_map_only,
     LLM_OPENAI_API_KEY,
     BackendCallbacks(
         report_status,
@@ -327,7 +330,8 @@ if mode_selector == MODE_ONE or bulk_result is None:
 bulk_output_params = BulkOutputParams(
     inc_explanation_checkbox,
     inc_source_checbox,
-    add_gold_data_checkbox
+    add_gold_data_checkbox,
+    site_map_only
 )
 df_bulk_result = back_end.build_ouput_data(bulk_result, bulk_output_params)
 if df_bulk_result.error:

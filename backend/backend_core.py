@@ -44,8 +44,9 @@ class BackendCallbacks:
 @dataclass
 class BackendParams:
     """Backend params"""
-    open_api_key : str
-    callbacks : BackendCallbacks
+    site_map_only    : bool
+    open_api_key     : str
+    callbacks        : BackendCallbacks
     score_by_summary : bool
     footer_texts : list[str]
 
@@ -65,8 +66,8 @@ class BackEndCore():
     """Main back-end class"""
 
     backend_params : BackendParams
-    llm : LLMManager
-    topic_manager : TopicManager
+    llm_manager    : LLMManager
+    topic_manager  : TopicManager
 
     def __init__(self, backend_params : BackendParams):
         self.backend_params = backend_params
@@ -76,7 +77,7 @@ class BackEndCore():
             backend_params.callbacks.report_error_callback
         )
         self.topic_manager = TopicManager()
-        self.llm = LLMManager(backend_params.open_api_key, llm_callbacks)
+        self.llm_manager   = LLMManager(backend_params.open_api_key, llm_callbacks)
 
     def report_status(self, status_str : str):
         """Report first line of status"""
@@ -133,6 +134,19 @@ class BackEndCore():
     def run_one(self, url : str, read_mode : ReadModeHTML) -> ScoreResultItem:
         """"Run process for one URL"""
 
+        if self.backend_params.site_map_only:
+            return ScoreResultItem(
+                url,
+                0,
+                0,
+                '',
+                0,
+                None,
+                '',
+                '',
+                False
+            )
+
         topic_dict : dict[int, TopicDefinition] = self.topic_manager.get_topic_dict()
 
         # load text from URL
@@ -156,7 +170,7 @@ class BackEndCore():
             )
 
         # clean up for LLM
-        input_text = self.llm.clean_up(input_text)
+        input_text = self.llm_manager.clean_up(input_text)
         self.backend_params.callbacks.show_original_text_callback(input_text)
 
         # slit into paragraphs (by summary or by original text)
@@ -173,7 +187,7 @@ class BackEndCore():
         self.backend_params.callbacks.show_extracted_text_callback(full_translated_text)
 
         self.report_substatus('Run topic score...')
-        score_topics_result : ScoreTopicsResult = self.llm.score_topics(
+        score_topics_result : ScoreTopicsResult = self.llm_manager.score_topics(
                                                     url,
                                                     translated_paragraph_list,
                                                     self.topic_manager.get_topic_chunks()
@@ -237,8 +251,6 @@ class BackEndCore():
         if priority_topics:
             priority_topics = sorted(priority_topics, key=lambda x: x.topic_score, reverse=True)
             priority_topic_candidate = priority_topics[0]
-            print(priority_topic_candidate)
-            print(main_topics.primary)
             if priority_topic_candidate.topic_score > main_topics.primary.topic_score:
                 main_topics.primary =  priority_topic_candidate
             elif priority_topic_candidate.topic_score > main_topics.secondary.topic_score:
@@ -265,7 +277,7 @@ class BackEndCore():
     def get_paragraph_list(self, by_summary : bool, input_text : str) -> []:
         """"Get paragpaths (as summary or 'as is')"""
         if by_summary:
-            summary = self.llm.refine_text(input_text)
+            summary = self.llm_manager.refine_text(input_text)
             summary = text_extractor(self.backend_params.footer_texts, summary)
         else:
             summary = text_extractor(self.backend_params.footer_texts, input_text)
@@ -276,7 +288,7 @@ class BackEndCore():
         self.backend_params.callbacks.show_summary_callback(summary)
 
         if not by_summary:
-            paragraph_list = self.llm.split_text_to_paragraphs(summary)
+            paragraph_list = self.llm_manager.split_text_to_paragraphs(summary)
         else:
             paragraph_list = [summary]
         
@@ -290,7 +302,7 @@ class BackEndCore():
 
         for i, paragraph_text in enumerate(paragraph_list):
             self.report_substatus(f'Request LLM for translation paragraph: {i+1}/{len(paragraph_list)}...')
-            translation_result : TranslationResult = self.llm.translate_text(paragraph_text)
+            translation_result : TranslationResult = self.llm_manager.translate_text(paragraph_text)
             self.backend_params.callbacks.used_tokens_callback(translation_result.used_tokens)
             translated_lang = translation_result.lang
 

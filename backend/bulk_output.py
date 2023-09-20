@@ -14,6 +14,7 @@ class BulkOutputParams:
     inc_explanation : bool
     inc_source      : bool
     inc_gold_data   : bool
+    site_map_only   : bool
 
 class BulkOutput():
     """Class to build output data"""
@@ -70,11 +71,14 @@ class BulkOutput():
         ) -> pd.DataFrame:
         """Create output data"""
         
+        if params.site_map_only:
+            return self.build_sitemap_output(bulk_result)
+
         gold_data_dict = {}
         if params.inc_gold_data and gold_data and gold_data.data:
             gold_data_dict = {gd.url.lower().strip() : gd for gd in gold_data.data}
 
-        topic_dict     = {t.name.lower().strip() : t.id for t in topic_list}
+        topic_dict = {t.name.lower().strip() : t.id for t in topic_list}
 
         bulk_columns = ['URL', 'Input length', 'Extracted length', 'Lang', 'Translated length']
         bulk_columns.extend(['Primary', 'Primary score'])
@@ -152,4 +156,13 @@ class BulkOutput():
 
             bulk_data.append(bulk_row)
 
+        return pd.DataFrame(bulk_data, columns = bulk_columns)
+    
+    def build_sitemap_output(
+        self,
+        bulk_result : list[ScoreResultItem]
+    ) -> pd.DataFrame:
+        """Only build sitemap"""
+        bulk_columns = ['URL']
+        bulk_data = [r.current_url for r in bulk_result]
         return pd.DataFrame(bulk_data, columns = bulk_columns)
