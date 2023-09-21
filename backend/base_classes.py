@@ -55,3 +55,13 @@ class ScoreResultItem:
     full_translated_text : str
     ordered_result_score : list
     page_not_found       : bool
+
+    @classmethod
+    def Empty(cls, url : str):
+        """Return empty record"""
+        return ScoreResultItem(url, 0, 0, '', 0, None, '', None, False)
+
+    @classmethod
+    def PageNotFound(cls, url : str):
+        """Page not found object"""
+        return ScoreResultItem(url, 0, 0, '', 0, None, '', None, True)

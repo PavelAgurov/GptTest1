@@ -45,16 +45,17 @@ class BackendCallbacks:
 class BackendParams:
     """Backend params"""
     site_map_only    : bool
+    skip_translation : bool
     open_api_key     : str
     callbacks        : BackendCallbacks
-    score_by_summary : bool
-    footer_texts : list[str]
+    footer_texts     : list[str]
 
 @dataclass
-class TranslatedParagraphs:
+class TranslatedResult:
     """Result of translation"""
-    lang : str
-    paragraphs : list[str]
+    lang            : str
+    translated_text : str
+    no_translation  : bool
 
 @dataclass
 class BuildOuputDataResult:
@@ -135,61 +136,50 @@ class BackEndCore():
         """"Run process for one URL"""
 
         if self.backend_params.site_map_only:
-            return ScoreResultItem(
-                url,
-                0,
-                0,
-                '',
-                0,
-                None,
-                '',
-                '',
-                False
-            )
+            return ScoreResultItem.Empty(url)
 
         topic_dict : dict[int, TopicDefinition] = self.topic_manager.get_topic_dict()
 
         # load text from URL
         self.report_substatus('Fetch data from URL...')
-        print('---------------------------------------')
-        print(f'Fetch data from URL [{url}]')
-        
         input_text = ''
-        input_text_len = 0
         try:
-            input_text = self.load_html(url, read_mode)
-            input_text_len = len(input_text)
-            self.report_substatus(f'Done. Got {input_text_len} chars.')
+            input_text = self.fetch_data_from_url(url, read_mode)
         except Exception: # pylint: disable=W0718
             self.report_substatus('Page not found')
-            return ScoreResultItem(url, 0, 0, 0, 0,
-                None,
-                None,
-                None,
-                True
-            )
+            return ScoreResultItem.PageNotFound(url)
 
-        # clean up for LLM
-        input_text = self.llm_manager.clean_up(input_text)
+        # clean up text for LLM usage
+        input_text = self.llm_manager.clean_up_text(input_text)
+        input_text_len = len(input_text)
         self.backend_params.callbacks.show_original_text_callback(input_text)
+        self.report_substatus(f'Done. Got {input_text_len} chars.')
 
-        # slit into paragraphs (by summary or by original text)
-        paragraph_list = self.get_paragraph_list(self.backend_params.score_by_summary, input_text)
-        extracted_text_len = len('\n'.join(paragraph_list))
+        # build summary
+        self.report_substatus('Build summary...')
+        summary = self.llm_manager.refine_text(input_text)
+        summary = text_extractor(self.backend_params.footer_texts, summary)
+        summary = summary.strip()
+        extracted_text_len = len(summary)
+        self.report_substatus('Summary is ready')
+        self.backend_params.callbacks.show_summary_callback(summary)
+        if extracted_text_len == 0:
+            return ScoreResultItem(url, input_text_len, 0, '', 0, None, '', None, False)
 
         # translation (if needed)
-        translated_paragraphs = self.get_translated_paragraph_list(paragraph_list)
-        translated_paragraph_list = translated_paragraphs.paragraphs
-        if translated_paragraph_list:
-            full_translated_text = '\n'.join(translated_paragraph_list)
-        else:
-            full_translated_text = 'Error during translation'
+        full_translated_text = summary
+        translated_lang = ''
+        if not self.backend_params.skip_translation:
+            translation_result = self.get_translated_text(summary)
+            translated_lang = translation_result.lang
+            if not translation_result.no_translation and len(translation_result.translated_text) > 0:
+                full_translated_text = translation_result.translated_text
         self.backend_params.callbacks.show_extracted_text_callback(full_translated_text)
 
         self.report_substatus('Run topic score...')
         score_topics_result : ScoreTopicsResult = self.llm_manager.score_topics(
                                                     url,
-                                                    translated_paragraph_list,
+                                                    full_translated_text,
                                                     self.topic_manager.get_topic_chunks()
                                                 )
         self.backend_params.callbacks.show_debug_json_callback(score_topics_result.debug_json_score)
@@ -268,7 +258,7 @@ class BackEndCore():
             url,
             input_text_len,
             extracted_text_len,
-            translated_paragraphs.lang, 
+            translated_lang,
             len(full_translated_text),
             main_topics,
             full_translated_text,
@@ -278,63 +268,39 @@ class BackEndCore():
 
         return score_result_item
 
-    def get_paragraph_list(self, by_summary : bool, input_text : str) -> []:
-        """"Get paragpaths (as summary or 'as is')"""
-        if by_summary:
-            summary = self.llm_manager.refine_text(input_text)
-            summary = text_extractor(self.backend_params.footer_texts, summary)
-        else:
-            summary = text_extractor(self.backend_params.footer_texts, input_text)
+    def fetch_data_from_url(self, url : str, read_mode : ReadModeHTML) -> str:
+        """load text from URL"""
+        print('---------------------------------------')
+        print(f'Fetch data from URL [{url}]')
+        input_text = self.load_html(url, read_mode)
+        return input_text
 
-        if not summary:
-            return []
-        self.report_substatus('Summary is ready')
-        self.backend_params.callbacks.show_summary_callback(summary)
-
-        if not by_summary:
-            paragraph_list = self.llm_manager.split_text_to_paragraphs(summary)
-        else:
-            paragraph_list = [summary]
-        
-        return paragraph_list
-
-    def get_translated_paragraph_list(self, paragraph_list : list[str]) -> TranslatedParagraphs:
+    def get_translated_text(self, text : str) -> TranslatedResult:
         """"Translation"""
-        translated_list = []
-        translated_lang = "None"
-        no_translation = False
-
-        for i, paragraph_text in enumerate(paragraph_list):
-            self.report_substatus(f'Request LLM for translation paragraph: {i+1}/{len(paragraph_list)}...')
-            translation_result : TranslationResult = self.llm_manager.translate_text(paragraph_text)
-            self.backend_params.callbacks.used_tokens_callback(translation_result.used_tokens)
-            translated_lang = translation_result.lang
-
-            if translated_lang in ["English", "en"]:
-                no_translation = True
-                break
-
-            if translation_result.error:
-                no_translation = True
-                self.backend_params.callbacks.report_error_callback(translation_result.error)
-                break
-
-            self.backend_params.callbacks.show_lang_callback(f'Language of original text: {translated_lang}')
-
-            translated_text = translation_result.translation
-            if translated_text:
-                translated_list.append(translated_text)
-            else:
-                no_translation = True
-                self.backend_params.callbacks.report_error_callback('Translation error')
-                break
-
-        if no_translation:
+        self.report_substatus('Request LLM for translation...')
+        translation_result : TranslationResult = self.llm_manager.translate_text(text)
+        self.backend_params.callbacks.used_tokens_callback(translation_result.used_tokens)
+        translated_lang = translation_result.lang
+        if translated_lang in ["English", "en"]:
+            self.report_substatus('')
             self.backend_params.callbacks.show_lang_callback("Text is in English. No translation needed.")
-            translated_list = paragraph_list # just use "as is"
+            return TranslatedResult("English", text, True)
+
+        if translation_result.error:
+            self.report_substatus('')
+            self.backend_params.callbacks.show_lang_callback("Translation error.")
+            self.backend_params.callbacks.report_error_callback(translation_result.error)
+            return TranslatedResult("English", text, True)
+
+        self.backend_params.callbacks.show_lang_callback(f'Language of original text: {translated_lang}')
+
+        if not translation_result.translation:
+            self.report_substatus('')
+            self.backend_params.callbacks.show_lang_callback("Translation result is empty.")
+            return TranslatedResult("English", text, True)
 
         self.report_substatus('')
-        return TranslatedParagraphs(translated_lang, translated_list)
+        return TranslatedResult(translated_lang, translation_result.translation, False)
 
     def  get_main_topics(self,
                         topic_dict : dict[str, TopicDefinition],

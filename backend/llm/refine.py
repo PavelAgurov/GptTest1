@@ -24,12 +24,13 @@ class RefineResult:
 refine_initial_prompt_template = """\
 You are the company's press secretary.
 Write a concise summary of the text (delimited with XML tags).
+Use only provided text, do not add anythong from yourself.
 Try to extract as much as possible useful information from provided text.
 If the text does not contain any information to summarize say "No summary".
 
 Please provide result in XML format:
 <summary>
-Summary here
+Summary here (not more than 1000 words)
 </summary>
 
 <text>
@@ -41,14 +42,13 @@ refine_combine_prompt_template = """\
 You are the company's press secretary.
 Your job is to produce a final summary from existed summary (delimited with XML tags) and some new context (delimited with XML tags).
 If new conext is not useful, just say that it's not useful.
-Write summary as a professional journalist.
 
 Please provide result in XML format:
 <not_useful>
     True if new context was not useful, False if new content was used
 </not_useful>
 <refined_summary>
-    Refined summary here if new context was useful (not more than 1000 words)
+    Refined summary here ONLY if new context was useful (not more than 1000 words)
 </refined_summary>
 
 <existing_summary>
@@ -80,7 +80,7 @@ class RefineChain():
     refine_initial_chain : LLMChain
     refine_combine_chain : LLMChain
     token_estimator : tiktoken.core.Encoding
-    TOKEN_BUFFER = 150
+    TOKEN_BUFFER = 50
 
     def __init__(self, llm : ChatOpenAI):
         if llm:
@@ -96,7 +96,7 @@ class RefineChain():
         """Lenght function"""
         return len(self.token_estimator.encode(text))
 
-    def get_max_possible_index(self, sentence_list : list[str], start_index : int, max_tokens : int, len_function : any) -> list[str]:
+    def get_max_possible_index(self, sentence_list : list[str], start_index : int, max_tokens : int, len_function : any) -> int:
         """Find next possible part of text"""
         token_count = 0
         for sentence_index in range(start_index, len(sentence_list)):
@@ -109,7 +109,8 @@ class RefineChain():
     
     def refine(self, text : str, max_tokens : int) -> RefineResult:
         """Refine call"""
-        sentence_list = text.split('.')
+        sentence_list = text.replace('\n', '.').split('.')
+        sentence_list = [f'{s.strip()}. ' for s in sentence_list if len(s.strip()) > 0]
 
         tokens_used = 0
         summary = ""
@@ -123,16 +124,22 @@ class RefineChain():
                 # execute first step -  summary
                 if summary_step:
                     prompt_len = self.len_function(self.refine_initial_chain.prompt.format(text = ''))
+                    max_token_in_text = max_tokens - prompt_len - self.TOKEN_BUFFER
                     new_index = self.get_max_possible_index(
                         sentence_list, 
-                        current_index, 
-                        max_tokens - prompt_len - self.TOKEN_BUFFER, 
+                        current_index,
+                        max_token_in_text,
                         self.len_function
                     )
-                    status = f'--- Process doc {current_index}:{new_index} / {len(sentence_list)}'
+                    status = f'--- Process doc init {current_index}:{new_index} / {len(sentence_list)}'
                     steps.append(status)
                     print(status)
-                    current_doc = '.'.join(sentence_list[current_index:new_index])
+
+                    current_doc_list = sentence_list[current_index:new_index]
+                    current_doc = ''.join(current_doc_list)
+                    current_doc_len = self.len_function(current_doc)
+
+                    print(f'max_tokens={max_tokens}, prompt_len={prompt_len}, max_token_in_text={max_token_in_text}, current_doc_len={current_doc_len}')
 
                     refine_initial_result = self.execute_initial_refine(current_doc)
                     tokens_used += refine_initial_result.tokens_used
@@ -157,7 +164,7 @@ class RefineChain():
                     max_tokens - prompt_len - self.TOKEN_BUFFER, 
                     self.len_function
                 )
-                steps.append(f'--- Process doc {current_index}:{new_index}')
+                steps.append(f'--- Process doc refine {current_index}:{new_index} / {len(sentence_list)}')
 
                 current_doc = '.'.join(sentence_list[current_index:new_index])
 

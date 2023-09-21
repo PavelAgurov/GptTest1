@@ -29,8 +29,6 @@ FOOTER_LIST = ['Quick links']
 
 SESSION_TOKEN_COUNT = 'token_count'
 
-if SESSION_TOKEN_COUNT not in st.session_state:
-    st.session_state[SESSION_TOKEN_COUNT] = 0
 # ------------------------------- UI
 
 MODE_ONE   = 'One URL'
@@ -59,8 +57,8 @@ with tab_process:
     col_s1, col_s2, col_s3, col_s4 = st.columns(4)
     inc_source_checbox         = col_s1.checkbox(label= "Include source in bulk output", disabled= mode_selector == MODE_ONE)
     inc_explanation_checkbox   = col_s2.checkbox(label= "Include explanation in bulk output", disabled= mode_selector == MODE_ONE)
-    score_by_summary_checkbox  = col_s3.checkbox(label= "Score by summary", value=True)
-    add_gold_data_checkbox     = col_s4.checkbox(label= "Add gold data", value=True)
+    skip_translation           = col_s3.checkbox(label= "Skip translation", value=False)
+    add_gold_data_checkbox     = col_s4.checkbox(label= "Add golden data", value=True)
 
     read_mode_list = [e.value for e in ReadModeHTML]
     read_mode = st.radio(
@@ -101,8 +99,7 @@ with tab_process:
     substatus_container  = st.empty()
     if mode_selector == MODE_ONE:
         org_text_container = st.expander(label="Original Text").empty()
-        if score_by_summary_checkbox:
-            summary_container  = st.expander(label="Summary").empty()
+        summary_container  = st.expander(label="Summary").empty()
         lang_container     = st.empty()
         extracted_text_container = st.expander(label="Extracted (and translated) Text").empty()
     main_topics_container = st.container().empty()
@@ -139,6 +136,8 @@ def skip_callback():
 
 def show_total_tokens():
     """Show total count of tokens"""
+    if SESSION_TOKEN_COUNT not in st.session_state:
+        st.session_state[SESSION_TOKEN_COUNT] = 0
     token_counter = st.session_state[SESSION_TOKEN_COUNT]
     token_container.markdown(f'Tokens used: {token_counter} (~cost ${token_counter/1000*COST_1K:10.4f})')
 
@@ -152,6 +151,8 @@ def report_substatus(substatus_str : str):
 
 def used_tokens_callback(used_tokens : int):
     """Update token counter"""
+    if SESSION_TOKEN_COUNT not in st.session_state:
+        st.session_state[SESSION_TOKEN_COUNT] = 0
     n = st.session_state[SESSION_TOKEN_COUNT]
     n += used_tokens
     st.session_state[SESSION_TOKEN_COUNT] = n
@@ -164,7 +165,7 @@ def show_original_text_callback(text : str):
 
 def show_summary_callback(summary : str):
     """Show summary"""
-    if mode_selector == MODE_ONE and score_by_summary_checkbox:
+    if mode_selector == MODE_ONE:
         summary_container.markdown(summary)
 
 def report_error_callback(err : str):
@@ -249,6 +250,7 @@ else:
 
 backend_params = BackendParams(
     site_map_only,
+    skip_translation,
     LLM_OPENAI_API_KEY,
     BackendCallbacks(
         report_status,
@@ -263,7 +265,6 @@ backend_params = BackendParams(
         show_main_topics_callback,
         show_topics_score_callback
     ),
-    score_by_summary_checkbox,
     footer_texts.split('\n')
 )
 

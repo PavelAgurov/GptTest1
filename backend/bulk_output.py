@@ -11,10 +11,10 @@ from backend.gold_data import GoldData
 @dataclass
 class BulkOutputParams:
     """Parameters for create output data"""
-    inc_explanation : bool
-    inc_source      : bool
-    inc_gold_data   : bool
-    site_map_only   : bool
+    inc_explanation  : bool
+    inc_source       : bool
+    inc_gold_data    : bool
+    site_map_only    : bool
 
 class BulkOutput():
     """Class to build output data"""
@@ -47,19 +47,25 @@ class BulkOutput():
             first_gold_topic = gold_data.secondary_topic
             second_gold_topic = gold_data.primary_topic
 
-        if not first_gold_topic and not second_gold_topic:
+        if not first_gold_topic and is_primary:
             return [None, None]
-        
+
+        if not second_gold_topic and not is_primary:
+            return [None, None]
+
         if first_gold_topic and first_gold_topic.lower().strip() not in topic_dict:
             return [first_gold_topic, "ERROR GOLDEN DATA"]
         
         topic_correct = 0.0
         if first_topic.lower().strip() == first_gold_topic.lower().strip(): # exact fit
             topic_correct = 1.0
+        elif second_topic.lower().strip() == second_gold_topic.lower().strip(): # exact fit
+            topic_correct = 1.0
         elif first_topic.lower().strip() == second_gold_topic.lower().strip():
             topic_correct = 0.5
         elif second_topic.lower().strip() == first_gold_topic.lower().strip():
             topic_correct = 0.5
+
         return [first_gold_topic, topic_correct]
 
     def create_data(

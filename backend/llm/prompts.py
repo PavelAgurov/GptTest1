@@ -1,13 +1,35 @@
+"""
+    Prompts for LLM
+"""
+
+# pylint: disable=C0103
+
 translation_prompt_template = """/
 You are the best English translator. Please translate provided article (delimited with XML tags) into English.
-Please provide result in JSON format with fields:
-- lang (human language of original article - English, Russian, German etc.)
-- translated (translated article)
-Be sure that result is real JSON.
+If article is in English already - just say that it's in English already and do not translate it.
+Do not return original article.
 
-<article>{article}</article>
+Please provide result in XML format:
+<lang>
+Human language of original article - English, Russian, German etc.
+</lang>
+
+<output>
+Translated article if language of provided article was not English.
+</output>
+
+<input>{input}</input>
 """
-# 
+
+# translation_prompt_template = """/
+# You are the best English translator. Please translate provided article (delimited with XML tags) into English.
+# Please provide result in JSON format with fields:
+# - lang (human language of original article - English, Russian, German etc.)
+# - translated (translated article)
+# Be sure that result is real JSON.
+
+# <article>{article}</article>
+# """
 
 score_prompt_template = """/
 You are text classification machine. 
