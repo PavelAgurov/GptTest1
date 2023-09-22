@@ -172,7 +172,10 @@ class RefineChain():
                 tokens_used += refine_step_result.tokens_used
                 steps.extend(refine_step_result.steps)
                 if refine_step_result.useful:
-                    summary = refine_step_result.new_summary
+                    if refine_step_result.new_summary:
+                        summary = refine_step_result.new_summary
+                    else:
+                        steps.append('ERROR: empty summary with Useful flag')
 
                 current_index = new_index+1
                 if new_index >= len(sentence_list):
