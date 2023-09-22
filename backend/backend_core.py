@@ -242,9 +242,9 @@ class BackEndCore():
         if priority_topics:
             priority_topics = sorted(priority_topics, key=lambda x: x.topic_score, reverse=True)
             priority_topic_candidate = priority_topics[0]
-            if priority_topic_candidate.topic_score > main_topics.primary.topic_score:
+            if priority_topic_candidate.topic_score > main_topics.primary.topic_score and main_topics.secondary.topic_index != priority_topic_candidate.topic_index:
                 main_topics.primary =  priority_topic_candidate
-            elif priority_topic_candidate.topic_score > main_topics.secondary.topic_score:
+            elif priority_topic_candidate.topic_score > main_topics.secondary.topic_score and main_topics.primary.topic_index != priority_topic_candidate.topic_index:
                 main_topics.secondary =  priority_topic_candidate
 
         main_topics.primary.topic_score = min(main_topics.primary.topic_score, 1)
