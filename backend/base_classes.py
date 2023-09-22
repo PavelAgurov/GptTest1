@@ -56,6 +56,30 @@ class ScoreResultItem:
     ordered_result_score : list
     page_not_found       : bool
 
+    def get_main_topic_primary_item(self) -> TopicScoreItem:
+        """Get primary topic if exists"""
+        if not self.main_topics:
+            return None
+        return self.main_topics.primary
+
+    def get_main_topic_secondary_item(self) -> TopicScoreItem:
+        """Get secondary topic if exists"""
+        if not self.main_topics:
+            return None
+        return self.main_topics.secondary
+
+    def get_main_topic_primary(self) -> str:
+        """Get primary topic if exists"""
+        if not self.main_topics or not self.main_topics.primary:
+            return ''
+        return self.main_topics.primary.topic
+
+    def get_main_topic_secondary(self) -> str:
+        """Get secondary topic if exists"""
+        if not self.main_topics or not self.main_topics.secondary:
+            return ''
+        return self.main_topics.secondary.topic
+
     @classmethod
     def Empty(cls, url : str):
         """Return empty record"""

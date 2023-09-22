@@ -106,6 +106,7 @@ class BulkOutput():
 
         bulk_data = []
         for row in bulk_result:
+            print(row)
             if row.page_not_found:
                 erorr_row = [row.current_url, "Page not found"]
                 erorr_row.extend([None]*(len(bulk_columns)-2))
@@ -115,34 +116,40 @@ class BulkOutput():
             bulk_row = []
             bulk_row.extend([row.current_url, row.input_text_len, row.extracted_text_len, row.translated_lang, row.transpated_text_len])
 
-            bulk_row.extend([row.main_topics.primary.topic, row.main_topics.primary.topic_score]) # primary topic
+            if row.main_topics and row.main_topics.primary:
+                bulk_row.extend([row.main_topics.primary.topic, row.main_topics.primary.topic_score]) # primary topic
+            else:
+                bulk_row.extend([None, None])
             
             if params.inc_gold_data:
                 bulk_row.extend(self.calculate_gold_data(
                     row.current_url,
-                    row.main_topics.primary.topic,
-                    row.main_topics.secondary.topic,
+                    row.get_main_topic_primary(),
+                    row.get_main_topic_secondary(),
                     gold_data_dict, 
                     topic_dict, 
                     True
                 ))
 
-            if params.inc_explanation:
+            if params.inc_explanation and row.main_topics and row.main_topics.primary:
                 bulk_row.extend([row.main_topics.primary.explanation])
 
-            bulk_row.extend([row.main_topics.secondary.topic, row.main_topics.secondary.topic_score]) # secondary topic
+            if row.main_topics and row.main_topics.secondary:
+                bulk_row.extend([row.main_topics.secondary.topic, row.main_topics.secondary.topic_score]) # secondary topic
+            else:
+                bulk_row.extend([None, None])
 
             if params.inc_gold_data:
                 bulk_row.extend(self.calculate_gold_data(
                     row.current_url, 
-                    row.main_topics.primary.topic, 
-                    row.main_topics.secondary.topic, 
+                    row.get_main_topic_primary(),
+                    row.get_main_topic_secondary(),
                     gold_data_dict, 
                     topic_dict, 
                     False
                 ))
 
-            if params.inc_explanation:
+            if params.inc_explanation and row.main_topics and row.main_topics.secondary:
                 bulk_row.extend([row.main_topics.secondary.explanation])
 
             if params.inc_source:
@@ -150,7 +157,7 @@ class BulkOutput():
             
             score_data = row.ordered_result_score
             for topic_item in topic_list:
-                if topic_item.id in score_data:
+                if score_data and topic_item.id in score_data:
                     topic_score = score_data[topic_item.id]
                     bulk_row.extend([topic_score[0]])
                     if params.inc_explanation:

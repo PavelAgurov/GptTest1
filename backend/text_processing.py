@@ -41,22 +41,9 @@ def text_to_paragraphs(extracted_text : str,
         result_paragraph_list.append('\n\n'.join(current_paragraph))
     return result_paragraph_list
 
-def limit_text_tokens(text : str,
-                      token_estimator : tiktoken.core.Encoding,
-                      max_tokens : int
-                    ) -> str:
+def limit_text_tokens(text: str, tokenizer: tiktoken.core.Encoding, max_tokens : int) -> str:
     """Limit text by tokens"""
-    result_words = []
-    words = text.split(' ')
-
-    current_token_count = 0
-    for word in words:
-        current_token_count = current_token_count + len(token_estimator.encode(word))
-        if current_token_count >= max_tokens:
-            break
-        result_words.append(word)
-
-    if len(result_words) == 0:
-        return ''
-
-    return ' '.join(result_words)
+    input_ids = tokenizer.encode(text)
+    end_index = min(max_tokens, len(input_ids))
+    chunk_ids = input_ids[:end_index]
+    return tokenizer.decode(chunk_ids)

@@ -62,7 +62,7 @@ class LLMManager():
 
     MODEL_NAME = "gpt-3.5-turbo" # gpt-3.5-turbo-16k
     MAX_MODEL_TOKENS = 4097 # max token for gpt 3.5
-    MAX_TOKENS_SCORE = 2000
+    MAX_TOKENS_SCORE = 1600
     MAX_TOKENS_SUMMARY = 2500
     FIRST_PARAGRAPH_MAX_TOKEN = 200 # small text to check language
     MAX_TOKENS_TRANSLATION    = 1000
@@ -177,22 +177,27 @@ class LLMManager():
 
             prompt_without_text = self.score_chain.prompt.format(topics = topics_for_prompt, article = '', url = url)
             prompt_without_text_tokens = len(self.token_estimator.encode(prompt_without_text))
-            max_tokens_score = self.MAX_MODEL_TOKENS - max(self.MAX_TOKENS_SCORE, prompt_without_text_tokens)
+            max_tokens_score = self.MAX_MODEL_TOKENS - self.MAX_TOKENS_SCORE - prompt_without_text_tokens - 10
 
             extracted_score = None
+            cut_information = None
             try:
                 reduced_text = limit_text_tokens(current_paragraph, self.token_estimator,  max_tokens_score) # cut if needed
-                if len(reduced_text) != len(current_paragraph):
-                    reduced_text_tokens = len(self.token_estimator.encode(reduced_text))
+                reduced_text_tokens = len(self.token_estimator.encode(reduced_text))
+                cut_information = f'current_paragraph size={len(current_paragraph)}), max_tokens_score={max_tokens_score}, prompt_without_text_tokens={prompt_without_text_tokens}, reduced_text_tokens={reduced_text_tokens}'
+                if reduced_text != current_paragraph:
                     print(f'prompt_without_text_tokens={prompt_without_text_tokens}')
-                    print(f'CUT TEXT before score: {len(current_paragraph)} => {len(reduced_text)} ({reduced_text_tokens} tokens)')
+                    cut_information = f'{cut_information}. CUT TEXT before score: {len(current_paragraph)} => {len(reduced_text)} ({reduced_text_tokens} tokens)'
+                    print(cut_information)
                 with get_openai_callback() as cb:
                     extracted_score = self.score_chain.run(topics = topics_for_prompt, article = reduced_text, url = url)
                 total_token_count += cb.total_tokens
                 self.report_status(f'Done. Got {len(extracted_score)} chars.')
+                extracted_score_tokens = len(self.token_estimator.encode(extracted_score))
+                print(f'extracted_score_tokens={extracted_score_tokens}')
                 debug_json_score.append(extracted_score)
             except Exception as error: # pylint: disable=W0718
-                error_list.append(f'Error: {error}\n\n{traceback.format_exc()}')
+                error_list.append(f'Error: {error}\n\n{traceback.format_exc()}. URL: {url}. {cut_information}')
 
             if not extracted_score:
                 continue
