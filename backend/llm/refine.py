@@ -246,6 +246,7 @@ class RefineChain():
                 refine_step_result = self.refine_combine_chain.run(existing_summary = existing_summary, more_context = more_context)
             tokens_used = cb.total_tokens
             steps.append(refine_step_result)
+            print(refine_step_result)
         except Exception as error: # pylint: disable=W0718
             steps.append(error)
 

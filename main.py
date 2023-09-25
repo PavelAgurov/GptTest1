@@ -5,6 +5,7 @@
 # pylint: disable=C0301,C0103,C0303,C0304,C0305,C0411,E1121
 
 import os
+import time
 import pandas as pd
 
 import streamlit as st
@@ -54,11 +55,10 @@ tab_process, tab_settings, tab_topic_editor, tab_debug = st.tabs(["Process URL(s
 site_map_only = False
 with tab_process:
     mode_selector              = st.radio(label="Mode", options=[MODE_ONE, MODE_BULK, MODE_EXCEL, MODE_SITEMAP], index=0, horizontal=True, label_visibility="hidden")
-    col_s1, col_s2, col_s3, col_s4 = st.columns(4)
+    col_s1, col_s2, col_s3 = st.columns(3)
     inc_source_checbox         = col_s1.checkbox(label= "Include source in bulk output", disabled= mode_selector == MODE_ONE)
     inc_explanation_checkbox   = col_s2.checkbox(label= "Include explanation in bulk output", disabled= mode_selector == MODE_ONE)
-    skip_translation           = col_s3.checkbox(label= "Skip translation", value=True)
-    add_gold_data_checkbox     = col_s4.checkbox(label= "Add golden data", value=True)
+    add_gold_data_checkbox     = col_s3.checkbox(label= "Add golden data", value=True)
 
     read_mode_list = [e.value for e in ReadModeHTML]
     read_mode = st.radio(
@@ -111,6 +111,9 @@ with tab_process:
 
 with tab_settings:
     open_api_key = st.text_input("OpenAPI Key: ", "", key="open_api_key")
+    skip_translation = st.checkbox(label= "Skip translation", value=True)
+    priority_threshold_main = st.number_input(label="Priority threshold for primary/secondary (1 - always, 0 - never)", 
+                                              min_value=0.0, max_value=1.0, value=1.0, step=0.1)
     footer_texts = st.text_area("Footers", value= '\n'.join(FOOTER_LIST))
 
 with tab_topic_editor:
@@ -129,6 +132,7 @@ with st.sidebar:
     header_container = st.container()
     header_container.markdown(strings.HOW_IT_WORK, unsafe_allow_html=True)
     token_container = st.empty()
+    start_time_container = st.empty()
     error_container = st.container()
 
 def skip_callback():
@@ -251,6 +255,7 @@ else:
 backend_params = BackendParams(
     site_map_only,
     skip_translation,
+    priority_threshold_main,
     LLM_OPENAI_API_KEY,
     BackendCallbacks(
         report_status,
@@ -328,7 +333,17 @@ else:
     sitemap_data_status.markdown(f'Loaded {len(input_url_list)} URLs (total count: {site_map_total_count})')
 
 input_url_list = [u for u in input_url_list if len(u)> 0 and not u.startswith('#')]
+
+start_time = time.localtime()
+start_time_str = time.strftime("%H:%M:%S", start_time)
+start_time_container.markdown(f'Start {start_time_str}')
+
 bulk_result : list[ScoreResultItem] = back_end.run(input_url_list, read_mode)
+
+end_time = time.localtime()
+end_time_str = time.strftime("%H:%M:%S", start_time)
+duration = (time.mktime(end_time) - time.mktime(start_time)) / 60
+start_time_container.markdown(f'Start: {start_time_str}. End: {end_time_str}. Duration: {duration:.2f} sec.')
 
 if mode_selector == MODE_ONE or bulk_result is None:
     st.stop()

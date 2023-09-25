@@ -18,7 +18,7 @@ from backend.bulk_output import BulkOutput, BulkOutputParams
 from backend.html_processors.bs4_processor import get_plain_text_bs4
 from backend.gold_data import get_gold_data
 
-PRIORITY_THRESHOLD = 0.5
+PRIORITY_THRESHOLD_ITEM = 0.5
 
 class ReadModeHTML(Enum):
     """Types of HTML reading"""
@@ -46,6 +46,7 @@ class BackendParams:
     """Backend params"""
     site_map_only    : bool
     skip_translation : bool
+    priority_threshold_main : float
     open_api_key     : str
     callbacks        : BackendCallbacks
     footer_texts     : list[str]
@@ -220,7 +221,7 @@ class BackEndCore():
                 original_topic_score = score_item_topic_score
                 score_item_topic_score = score_item_topic_score * topic_priority
                 score_item_topic_expln = f'{score_item_topic_expln} Priority {topic_priority}: {original_topic_score:.2f}=>{score_item_topic_score:.2f}.'
-                if score_item_topic_score > PRIORITY_THRESHOLD:
+                if score_item_topic_score > PRIORITY_THRESHOLD_ITEM:
                     priority_topics.append(
                         TopicScoreItem(
                             score_item_topic_index,
@@ -242,9 +243,13 @@ class BackEndCore():
         if priority_topics:
             priority_topics = sorted(priority_topics, key=lambda x: x.topic_score, reverse=True)
             priority_topic_candidate = priority_topics[0]
-            if priority_topic_candidate.topic_score > main_topics.primary.topic_score and main_topics.secondary.topic_index != priority_topic_candidate.topic_index:
+            if  priority_topic_candidate.topic_score > main_topics.primary.topic_score and \
+                    main_topics.secondary.topic_index != priority_topic_candidate.topic_index and \
+                    main_topics.primary.topic_score < self.backend_params.priority_threshold_main:
                 main_topics.primary =  priority_topic_candidate
-            elif priority_topic_candidate.topic_score > main_topics.secondary.topic_score and main_topics.primary.topic_index != priority_topic_candidate.topic_index:
+            elif priority_topic_candidate.topic_score > main_topics.secondary.topic_score and \
+                    main_topics.primary.topic_index != priority_topic_candidate.topic_index and\
+                    main_topics.secondary.topic_score < self.backend_params.priority_threshold_main:
                 main_topics.secondary =  priority_topic_candidate
 
         main_topics.primary.topic_score = min(main_topics.primary.topic_score, 1)
