@@ -42,6 +42,8 @@ def get_llm_json(text : str) -> any:
 def get_fixed_json(text : str) -> str:
     """Fix LLM json"""
     text = re.sub(r"},\s*]", "}]", text)
+    text = re.sub(r"}\s*{", "},{", text)
+
     open_bracket = min(text.find('['), text.find('{'))
     if open_bracket == -1:
         return text

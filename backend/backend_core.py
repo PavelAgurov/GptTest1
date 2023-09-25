@@ -188,7 +188,7 @@ class BackEndCore():
 
         if score_topics_result.error:
             self.backend_params.callbacks.report_error_callback(score_topics_result.error)
-            return []
+            return ScoreResultItem.Error(url, score_topics_result.error)
 
         self.report_substatus('Calculate primary and secondary topics...')
         topic_index_by_url : int = self.topic_manager.get_topic_by_url(url)

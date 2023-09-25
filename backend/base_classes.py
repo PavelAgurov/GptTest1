@@ -54,7 +54,7 @@ class ScoreResultItem:
     main_topics          : MainTopics
     full_translated_text : str
     ordered_result_score : list
-    page_not_found       : bool
+    error                : str
 
     def get_main_topic_primary_item(self) -> TopicScoreItem:
         """Get primary topic if exists"""
@@ -83,9 +83,14 @@ class ScoreResultItem:
     @classmethod
     def Empty(cls, url : str):
         """Return empty record"""
-        return ScoreResultItem(url, 0, 0, '', 0, None, '', None, False)
+        return ScoreResultItem(url, 0, 0, '', 0, None, '', None, None)
 
     @classmethod
     def PageNotFound(cls, url : str):
         """Page not found object"""
-        return ScoreResultItem(url, 0, 0, '', 0, None, '', None, True)
+        return ScoreResultItem(url, 0, 0, '', 0, None, '', None, "Page not found")
+
+    @classmethod
+    def Error(cls, url : str, error : str):
+        """Error"""
+        return ScoreResultItem(url, 0, 0, '', 0, None, 'ERROR', None, error)

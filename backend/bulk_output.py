@@ -107,8 +107,9 @@ class BulkOutput():
         bulk_data = []
         for row in bulk_result:
             print(row)
-            if row.page_not_found:
-                erorr_row = [row.current_url, "Page not found"]
+
+            if row.error:
+                erorr_row = [row.current_url, row.error]
                 erorr_row.extend([None]*(len(bulk_columns)-2))
                 bulk_data.append(erorr_row)
                 continue

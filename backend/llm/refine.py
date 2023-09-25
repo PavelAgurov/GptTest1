@@ -3,6 +3,7 @@
 """
 # pylint: disable=C0301,C0103,C0303,C0304,C0305,C0411,E1121,R0903
 
+import time
 from dataclasses import dataclass
 import tiktoken
 import traceback
@@ -26,11 +27,13 @@ You are the company's press secretary.
 Write a concise summary of the text (delimited with XML tags).
 Use only provided text, do not add anythong from yourself.
 Try to extract as much as possible useful information from provided text.
+Make sure a summary is entirely in English. Translate it into English where needed.
+Rewrite it if a summary exceeds 2000 characters. Do not repeat the same information.
 If the text does not contain any information to summarize say "No summary".
 
 Please provide result in XML format:
 <summary>
-Summary here (not more than 1000 words)
+Summary here (not more than 2000 characters)
 </summary>
 
 <text>
@@ -42,13 +45,15 @@ refine_combine_prompt_template = """\
 You are the company's press secretary.
 Your job is to produce a final summary from existed summary (delimited with XML tags) and some new context (delimited with XML tags).
 If new conext is not useful, just say that it's not useful.
+Make sure a summary is entirely in English. Translate it into English where needed.
+Rewrite it if a summary exceeds 2000 characters. Do not repeat the same information.
 
 Please provide result in XML format:
 <not_useful>
     True if new context was not useful, False if new content was used
 </not_useful>
 <refined_summary>
-    Refined summary here ONLY if new context was useful (not more than 1000 words)
+    Refined summary here ONLY if new context was useful (not more than 2000 characters)
 </refined_summary>
 
 <existing_summary>
@@ -110,7 +115,14 @@ class RefineChain():
     def refine(self, text : str, max_tokens : int) -> RefineResult:
         """Refine call"""
         sentence_list = text.replace('\n', '.').split('.')
-        sentence_list = [f'{s.strip()}. ' for s in sentence_list if len(s.strip()) > 0]
+        sentence_list_without_dupl = []
+        for sentence in sentence_list:
+            sentence = sentence.strip()
+            if not sentence:
+                continue
+            if len(sentence_list_without_dupl) == 0 or sentence_list_without_dupl[-1] != sentence:
+                sentence_list_without_dupl.append(sentence)
+        sentence_list = [f'{s}. ' for s in sentence_list_without_dupl]
 
         tokens_used = 0
         summary = ""
@@ -140,11 +152,12 @@ class RefineChain():
                     current_doc_len = self.len_function(current_doc)
 
                     print(f'max_tokens={max_tokens}, prompt_len={prompt_len}, max_token_in_text={max_token_in_text}, current_doc_len={current_doc_len}')
-
                     refine_initial_result = self.execute_initial_refine(current_doc)
                     tokens_used += refine_initial_result.tokens_used
                     steps.extend(refine_initial_result.steps)
                     summary = refine_initial_result.summary
+
+                    time.sleep(0.1)
 
                     current_index = new_index+1
                     if new_index >= len(sentence_list):
@@ -158,15 +171,18 @@ class RefineChain():
 
                 # execute refine
                 prompt_len = self.len_function(self.refine_combine_chain.prompt.format(existing_summary = summary, more_context = ''))
+                max_token_in_text = max_tokens - prompt_len - self.TOKEN_BUFFER
                 new_index = self.get_max_possible_index(
                     sentence_list, 
                     current_index, 
-                    max_tokens - prompt_len - self.TOKEN_BUFFER, 
+                    max_token_in_text,
                     self.len_function
                 )
-                steps.append(f'--- Process doc refine {current_index}:{new_index} / {len(sentence_list)}')
+                status = f'--- Process doc refine {current_index}:{new_index} / {len(sentence_list)}'
+                steps.append(status)
+                print(status)
 
-                current_doc = '.'.join(sentence_list[current_index:new_index])
+                current_doc = ''.join(sentence_list[current_index:new_index])
 
                 refine_step_result = self.execute_refine_step(summary, current_doc)
                 tokens_used += refine_step_result.tokens_used
@@ -176,6 +192,8 @@ class RefineChain():
                         summary = refine_step_result.new_summary
                     else:
                         steps.append('ERROR: empty summary with Useful flag')
+
+                time.sleep(0.1)
 
                 current_index = new_index+1
                 if new_index >= len(sentence_list):
@@ -201,8 +219,10 @@ class RefineChain():
                 refine_initial_result = self.refine_initial_chain.run(text = document)
             tokens_used = cb.total_tokens
             steps.append(refine_initial_result)
+            print(refine_initial_result)
         except Exception as error: # pylint: disable=W0718
             steps.append(error)
+            print(error)
 
         if refine_initial_result:
             summary_xml = parse_llm_xml(refine_initial_result, ["summary"])

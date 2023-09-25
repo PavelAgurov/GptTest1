@@ -63,7 +63,7 @@ class LLMManager():
     MODEL_NAME = "gpt-3.5-turbo" # gpt-3.5-turbo-16k
     MAX_MODEL_TOKENS = 4097 # max token for gpt 3.5
     MAX_TOKENS_SCORE = 1600
-    MAX_TOKENS_SUMMARY = 2500
+    MAX_TOKENS_SUMMARY = 2000
     FIRST_PARAGRAPH_MAX_TOKEN = 200 # small text to check language
     MAX_TOKENS_TRANSLATION    = 1000
 
@@ -82,7 +82,8 @@ class LLMManager():
             model_name     = self.MODEL_NAME, 
             openai_api_key = open_api_key,
             max_tokens     = self.MAX_TOKENS_TRANSLATION,
-            temperature    = 0
+            temperature    = 0,
+            max_retries    = 3
         )
         translation_prompt = PromptTemplate.from_template(prompts.translation_prompt_template)
         self.translation_chain = LLMChain(llm=llm_translation, prompt = translation_prompt)

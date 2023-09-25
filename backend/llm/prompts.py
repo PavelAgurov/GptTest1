@@ -11,7 +11,7 @@ Do not return original article.
 
 Please provide result in XML format:
 <lang>
-Human language of original article - English, Russian, German etc.
+Human language of original article - English, Russian, German etc. Put only language name here.
 </lang>
 
 <output>

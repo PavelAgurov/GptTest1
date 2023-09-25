@@ -57,7 +57,7 @@ with tab_process:
     col_s1, col_s2, col_s3, col_s4 = st.columns(4)
     inc_source_checbox         = col_s1.checkbox(label= "Include source in bulk output", disabled= mode_selector == MODE_ONE)
     inc_explanation_checkbox   = col_s2.checkbox(label= "Include explanation in bulk output", disabled= mode_selector == MODE_ONE)
-    skip_translation           = col_s3.checkbox(label= "Skip translation", value=False)
+    skip_translation           = col_s3.checkbox(label= "Skip translation", value=True)
     add_gold_data_checkbox     = col_s4.checkbox(label= "Add golden data", value=True)
 
     read_mode_list = [e.value for e in ReadModeHTML]
