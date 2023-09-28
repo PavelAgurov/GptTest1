@@ -48,6 +48,7 @@ class BackendParams:
     """Backend params"""
     site_map_only    : bool
     skip_translation : bool
+    skip_url_words   : bool
     priority_threshold_main : float
     open_api_key     : str
     callbacks        : BackendCallbacks
@@ -203,7 +204,11 @@ class BackEndCore():
             return ScoreResultItem.Error(url, score_topics_result.error)
 
         self.report_substatus('Calculate primary and secondary topics...')
-        topic_index_by_url : int = self.topic_manager.get_topic_by_url(url)
+        
+        topic_index_by_url : int = None
+        if not self.backend_params.skip_url_words:
+            topic_index_by_url = self.topic_manager.get_topic_by_url(url)
+
         result_primary_topic_json = score_topics_result.primary_topic_json
         result_secondary_topic_json = score_topics_result.secondary_topic_json
     

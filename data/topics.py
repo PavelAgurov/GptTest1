@@ -45,7 +45,8 @@ TOPICS_LIST : list[TopicDefinition] = [
    TopicDefinition(
       7,
       "Smoke-free vision",
-      "Centers on societal and corporate mission, highlighting its dedication to providing millions of smokers with less harmful but satisfying alternatives through innovative smoke-free products, aiming to accelerate the transition towards a cigarette-free world."
+      "Centers on societal and corporate mission, highlighting its dedication to providing millions of smokers with less harmful but satisfying alternatives through innovative smoke-free products, aiming to accelerate the transition towards a cigarette-free world.",
+      url_words=["smoke-free-products"]
    ),
    TopicDefinition(
       8,

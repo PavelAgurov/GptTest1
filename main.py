@@ -114,6 +114,7 @@ with tab_process:
 with tab_settings:
     open_api_key = st.text_input("OpenAPI Key: ", "", key="open_api_key")
     skip_translation = st.checkbox(label= "Skip translation", value=True)
+    skip_url_words   = st.checkbox(label= "Do not use url words", value=False)
     priority_threshold_main = st.number_input(label="Priority threshold for primary/secondary (1 - always, 0 - never)", 
                                               min_value=0.0, max_value=1.0, value=0.5, step=0.1)
     footer_texts = st.text_area("Footers", value= '\n'.join(FOOTER_LIST))
@@ -257,6 +258,7 @@ else:
 backend_params = BackendParams(
     site_map_only,
     skip_translation,
+    skip_url_words,
     priority_threshold_main,
     LLM_OPENAI_API_KEY,
     BackendCallbacks(

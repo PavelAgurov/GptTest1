@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 from backend.base_classes import ScoreResultItem, TopicDefinition
 from backend.gold_data import GoldData
+from utils import str2lower
 
 @dataclass
 class BulkOutputParams:
@@ -24,49 +25,43 @@ class BulkOutput():
             url : str,
             primary_topic   : str,
             secondary_topic : str,
-            gold_data_dict : dict[str, GoldData],
-            topic_dict     : dict[str, int],
+            gold_data_dict  : dict[str, GoldData],
+            topic_dict      : dict[str, int],
             is_primary : bool
         ) -> []:
         """Return primary gold data"""
+        # no golden data at all
         if not gold_data_dict:
             return [None, None]
+        
+        # no golden data for this URL
         u_url = url.lower().strip()
         if u_url not in gold_data_dict:
             return [None, None]
         
-        gold_data = gold_data_dict[u_url]
+        golden_data = gold_data_dict[u_url]
         if is_primary:
-            first_topic       = primary_topic
-            second_topic      = secondary_topic
-            first_gold_topic  = gold_data.primary_topic
-            second_gold_topic = gold_data.secondary_topic
+            first_topic         = primary_topic
+            first_golden_topic  = golden_data.primary_topic
+            second_golden_topic = golden_data.secondary_topic
         else:
-            first_topic       = secondary_topic
-            second_topic      = primary_topic
-            first_gold_topic = gold_data.secondary_topic
-            second_gold_topic = gold_data.primary_topic
+            first_topic         = secondary_topic
+            first_golden_topic  = golden_data.secondary_topic
+            second_golden_topic = golden_data.primary_topic
 
-        if not first_gold_topic and is_primary:
+        if not first_golden_topic:
             return [None, None]
-
-        if not second_gold_topic and not is_primary:
-            return [None, None]
-
-        if first_gold_topic and first_gold_topic.lower().strip() not in topic_dict:
-            return [first_gold_topic, "ERROR GOLDEN DATA"]
         
+        if str2lower(first_golden_topic) not in topic_dict:
+            return [first_golden_topic, "ERROR GOLDEN DATA"]
+
         topic_correct = 0.0
-        if first_topic.lower().strip() == first_gold_topic.lower().strip(): # exact fit
+        if str2lower(first_topic) == str2lower(first_golden_topic): # exact fit
             topic_correct = 1.0
-        elif second_topic.lower().strip() == second_gold_topic.lower().strip(): # exact fit
-            topic_correct = 1.0
-        elif first_topic.lower().strip() == second_gold_topic.lower().strip():
-            topic_correct = 0.5
-        elif second_topic.lower().strip() == first_gold_topic.lower().strip():
+        elif str2lower(first_topic) == str2lower(second_golden_topic): # expected, but as other main topic
             topic_correct = 0.5
 
-        return [first_gold_topic, topic_correct]
+        return [first_golden_topic, topic_correct]
 
     def create_data(
             self,
