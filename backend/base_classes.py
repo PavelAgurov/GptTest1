@@ -81,10 +81,10 @@ class ScoreResultItem:
         return self.main_topics.secondary.topic
 
     @classmethod
-    def Empty(cls, url : str):
-        """Return empty record"""
-        return ScoreResultItem(url, 0, 0, '', 0, None, '', None, None)
-
+    def Empty(cls, url : str, input_text_len : int = 0):
+        """Empry result"""
+        return ScoreResultItem(url, input_text_len, 0, '', 0, None, '', None, None)
+    
     @classmethod
     def PageNotFound(cls, url : str):
         """Page not found object"""
@@ -94,3 +94,4 @@ class ScoreResultItem:
     def Error(cls, url : str, error : str):
         """Error"""
         return ScoreResultItem(url, 0, 0, '', 0, None, 'ERROR', None, error)
+

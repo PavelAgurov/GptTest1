@@ -132,8 +132,11 @@ class BulkOutput():
                     True
                 ))
 
-            if params.inc_explanation and row.main_topics and row.main_topics.primary:
-                bulk_row.extend([row.main_topics.primary.explanation])
+            if params.inc_explanation:
+                if row.main_topics and row.main_topics.primary:
+                    bulk_row.extend([row.main_topics.primary.explanation])
+                else:
+                    bulk_row.extend([None])
 
             if row.main_topics and row.main_topics.secondary:
                 bulk_row.extend([row.main_topics.secondary.topic, row.main_topics.secondary.topic_score]) # secondary topic
@@ -150,8 +153,11 @@ class BulkOutput():
                     False
                 ))
 
-            if params.inc_explanation and row.main_topics and row.main_topics.secondary:
-                bulk_row.extend([row.main_topics.secondary.explanation])
+            if params.inc_explanation:
+                if row.main_topics and row.main_topics.secondary:
+                    bulk_row.extend([row.main_topics.secondary.explanation])
+                else:
+                    bulk_row.extend([None])
 
             if params.inc_source:
                 bulk_row.extend([row.full_translated_text])

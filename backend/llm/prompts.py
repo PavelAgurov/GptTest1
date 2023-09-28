@@ -2,7 +2,7 @@
     Prompts for LLM
 """
 
-# pylint: disable=C0103
+# pylint: disable=C0103,C0301
 
 translation_prompt_template = """/
 You are the best English translator. Please translate provided article (delimited with XML tags) into English.
@@ -41,20 +41,19 @@ Also take into considiration article's URL (delimited with XML tags) that can be
 URL is very important information that can bring high score for the relevant topic.
 
 Also add score of relevance from 0 to 1 (0 - not relevant, 1 - fully relevant).
-When possible you should include parts of original text to make explanation more clear.
-Provide as much arguments as possible why article is related or not to the topic.
+Provide arguments why article is related or not to the topic.
 Be very scrupulous when you do classification. If it's only one or two words then it's not enough to be relevant.
 When article can be considered as related to the topic, but does not provide any information - reduce score.
-Exceptions are topics related to a regulation, a science or job - they can be primary even with small score.
 
-Choose the two most relevant and least abstract topics as major and minor topics and determine their relevance.
-Add a detailed explanation of why you chose this particular topic as your major and minor, and not vice versa.
+Choose the two most relevant topics as major (primary) and minor (secondary) topics and determine their relevance.
+Add an explanation of why you chose this particular topic as your major and minor, and not vice versa.
 Do not just use previously calculated scores, think about it one more time.
 
 Think about it step by step:
 - read all topics
 - read article
 - generate scores for each topic
+- choose primary and secondary topics
 - provide output in JSON format:
 {{
     "topics":[
@@ -64,12 +63,12 @@ Think about it step by step:
     "primary_topic":[
         "topic_id" : primary topic id,
         "score": 0.9,
-        "explanation": "why this topic is primary by relevance"
+        "explanation": "short explanation why this topic is primary by relevance"
     ],
     "secondary_topic":[
         "topic_id" : secondary topic id,
         "score": 0.1,
-        "explanation": "why this topic is secondary by relevance"
+        "explanation": "short explanation why this topic is secondary by relevance"
     ]
 }}
 

@@ -19,6 +19,12 @@ def parse_llm_xml(text : str, variables : list[str]) -> dict[str, str]:
             continue
         end_index = text.find(f'</{var_name}>')
         if end_index == -1:
+            # hack - if we have only one tag and it's not closed - guess that it's full text
+            if len(variables) == 1:
+                var_value_fixed = text[start_index + len(start_var_name):]
+                if var_value_fixed:
+                    var_value_fixed = var_value_fixed.strip()
+                result[var_name] = var_value_fixed
             continue
         var_value = text[start_index + len(start_var_name):end_index]
         if var_value:

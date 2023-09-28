@@ -8,6 +8,7 @@ from dataclasses import dataclass
 import collections
 from unstructured.partition.html import partition_html
 import urllib
+from urllib.parse import urlparse
 import pandas as pd
 
 from backend.llm_manager import LLMManager, LlmCallbacks, ScoreTopicsResult, TranslationResult
@@ -17,6 +18,7 @@ from backend.base_classes import TopicScoreItem, MainTopics, ScoreResultItem, To
 from backend.bulk_output import BulkOutput, BulkOutputParams
 from backend.html_processors.bs4_processor import get_plain_text_bs4
 from backend.gold_data import get_gold_data
+from data.parser_html_classes import HTML_CLASSES
 
 PRIORITY_THRESHOLD_ITEM = 0.5
 
@@ -100,9 +102,15 @@ class BackEndCore():
         # based on BS4
         result2 = ''
         if loading_mode_bs in [ReadModeHTML.BS4.value, ReadModeHTML.MIXED.value]:
+            domain = urlparse(url).netloc
+
+            html_classes_to_parse = None
+            if domain in HTML_CLASSES:
+                html_classes_to_parse = HTML_CLASSES[domain]
+
             with urllib.request.urlopen(url) as f:
                 html = f.read()
-            result2 = get_plain_text_bs4(html)
+            result2 = get_plain_text_bs4(html, html_classes_to_parse)
 
         if loading_mode_bs == ReadModeHTML.PARTITION.value:
             return result1
@@ -114,7 +122,7 @@ class BackEndCore():
             return result1
         return result2
 
-    def run(self, url_list : list[str], read_mode : ReadModeHTML) -> list[ScoreResultItem]:
+    def run(self, url_list : list[str], read_mode : ReadModeHTML, only_read_html : bool) -> list[ScoreResultItem]:
         """Run process for bulk URLs"""
 
         result_data = list[ScoreResultItem]()
@@ -126,14 +134,14 @@ class BackEndCore():
                 self.report_status(f'Processing URL [url: {index+1}/{len(url_list)}] {url}...')
             else:
                 self.report_status(f'Processing URL {url}...')
-            result_data.append(self.run_one(url, read_mode))
+            result_data.append(self.run_one(url, read_mode, only_read_html))
             if len(url_list) > 1:
                 self.report_substatus('')
 
         self.report_status('Done')
         return result_data
 
-    def run_one(self, url : str, read_mode : ReadModeHTML) -> ScoreResultItem:
+    def run_one(self, url : str, read_mode : ReadModeHTML, only_read_html : bool) -> ScoreResultItem:
         """"Run process for one URL"""
 
         if self.backend_params.site_map_only:
@@ -156,6 +164,9 @@ class BackEndCore():
         self.backend_params.callbacks.show_original_text_callback(input_text)
         self.report_substatus(f'Done. Got {input_text_len} chars.')
 
+        if only_read_html:
+            return ScoreResultItem.Empty(url, input_text_len)
+
         # build summary
         self.report_substatus('Build summary...')
         summary = self.llm_manager.refine_text(input_text)
@@ -165,7 +176,7 @@ class BackEndCore():
         self.report_substatus('Summary is ready')
         self.backend_params.callbacks.show_summary_callback(summary)
         if extracted_text_len == 0:
-            return ScoreResultItem(url, input_text_len, 0, '', 0, None, '', None, False)
+            return ScoreResultItem.Empty(url, input_text_len)
 
         # translation (if needed)
         full_translated_text = summary
@@ -213,7 +224,7 @@ class BackEndCore():
             score_item_topic_score = topics_score_ordered[score_item_topic_index][0]
             score_item_topic_expln = topics_score_ordered[score_item_topic_index][1]
             if score_item_topic_index not in topic_dict:
-                self.backend_params.callbacks.report_error_callback(topics_score_ordered)
+                self.backend_params.callbacks.report_error_callback(f'Unknown topic index. JSON: {topics_score_ordered}. URL: {url}')
                 continue
             
             topic_priority = topic_dict[score_item_topic_index].priority
@@ -245,11 +256,11 @@ class BackEndCore():
             priority_topic_candidate = priority_topics[0]
             if  priority_topic_candidate.topic_score > main_topics.primary.topic_score and \
                     main_topics.secondary.topic_index != priority_topic_candidate.topic_index and \
-                    main_topics.primary.topic_score < self.backend_params.priority_threshold_main:
+                    main_topics.primary.topic_score <= self.backend_params.priority_threshold_main:
                 main_topics.primary =  priority_topic_candidate
             elif priority_topic_candidate.topic_score > main_topics.secondary.topic_score and \
                     main_topics.primary.topic_index != priority_topic_candidate.topic_index and\
-                    main_topics.secondary.topic_score < self.backend_params.priority_threshold_main:
+                    main_topics.secondary.topic_score <= self.backend_params.priority_threshold_main:
                 main_topics.secondary =  priority_topic_candidate
 
         main_topics.primary.topic_score = min(main_topics.primary.topic_score, 1)

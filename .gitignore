@@ -10,3 +10,4 @@ result.xlsx
 .env
 /.tiktoken-cache
 /backend/html_processors/__pycache__
+/data/__pycache__

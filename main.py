@@ -65,9 +65,11 @@ with tab_process:
             "HTML Read mode:",
             key="html_read_mode",
             options= read_mode_list,
-            index=2,
+            index=1,
             horizontal=True
     )
+
+    only_read_html = st.checkbox(label='Only read HTML', value= False)
 
     if mode_selector == MODE_ONE:
         input_url_one = st.text_input("URL: ", "", key="input")
@@ -113,7 +115,7 @@ with tab_settings:
     open_api_key = st.text_input("OpenAPI Key: ", "", key="open_api_key")
     skip_translation = st.checkbox(label= "Skip translation", value=True)
     priority_threshold_main = st.number_input(label="Priority threshold for primary/secondary (1 - always, 0 - never)", 
-                                              min_value=0.0, max_value=1.0, value=1.0, step=0.1)
+                                              min_value=0.0, max_value=1.0, value=0.5, step=0.1)
     footer_texts = st.text_area("Footers", value= '\n'.join(FOOTER_LIST))
 
 with tab_topic_editor:
@@ -338,7 +340,7 @@ start_time = time.localtime()
 start_time_str = time.strftime("%H:%M:%S", start_time)
 start_time_container.markdown(f'Start {start_time_str}')
 
-bulk_result : list[ScoreResultItem] = back_end.run(input_url_list, read_mode)
+bulk_result : list[ScoreResultItem] = back_end.run(input_url_list, read_mode, only_read_html)
 
 end_time = time.localtime()
 end_time_str = time.strftime("%H:%M:%S", start_time)

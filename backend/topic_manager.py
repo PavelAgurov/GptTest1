@@ -5,17 +5,24 @@
 # pylint: disable=C0301,C0103,C0303,C0304,C0305,C0411,E1121,R0902,R0903
 import os
 import copy
+from dataclasses import dataclass
 
-from topics import TOPICS_LIST
+from data.topics import TOPICS_LIST
 from backend.base_classes import TopicDefinition, TopicList
 
+
+@dataclass
+class TopicPriority:
+    """To store topic priority"""
+    topic_index    : int
+    topic_priority : int
 
 class TopicManager():
     """Topic manager"""
 
     topic_chunks : list[list[TopicDefinition]]
     topic_dict   : dict[int, TopicDefinition]
-    url_words    : dict[str, int]
+    url_words    : dict[str, TopicPriority]
 
     __DISK_FOLDER = '.topics'
     __TOPIC_FILE = 'topics.json'
@@ -28,7 +35,7 @@ class TopicManager():
             if not topic.url_words:
                 continue
             for word in topic.url_words:
-                self.url_words[word] = topic.id
+                self.url_words[word] = TopicPriority(topic.id, topic.priority)
 
         os.makedirs(self.__DISK_FOLDER, exist_ok=True)
 
@@ -48,10 +55,15 @@ class TopicManager():
     
     def get_topic_by_url(self, url : str) -> int:
         """Check if URL is relevant to some topic"""
+        detected_list = list[TopicPriority]()
         for url_word_item in self.url_words.items():
             if url_word_item[0] in url:
-                return url_word_item[1]
-        return None
+                detected_list.append(url_word_item[1])
+        if not detected_list:
+            return None
+        detected_list = sorted(detected_list, key=lambda x: x.topic_priority, reverse=True)
+        return detected_list[0].topic_index
+        
     
     def get_topic_list(self) -> list[TopicDefinition]:
         """Return all topics"""
