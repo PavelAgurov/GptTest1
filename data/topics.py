@@ -9,71 +9,69 @@ TOPICS_LIST : list[TopicDefinition] = [
    TopicDefinition(
       1,
       "Tobacco Harm reduction",
-      "Focuses on harm reduction applied to tobacco and exploring the scientific basis behind it, highlighting the development of smoke-free alternatives to traditional cigarettes supported by research and technology.",
+      "Discusses the development and promotion of smoke-free alternatives to traditional cigarettes, such as heated tobacco products, e-vapor devices, and oral smokeless products, as a strategy to reduce the harmful effects of smoking. Highlights the scientific research and investment behind these products and their potential impact on public health.",
       url_words=["harm-reduction"]
    ),
    TopicDefinition(
       2,
       "Tobacco multi-product approach",
-      "Several categories of smokeless alternatives (e-vaping devices, heated tobacco products, oral smokeless products and other).",
+      "Focuses on PMI's diverse portfolio of smoke-free alternatives to traditional cigarettes, including heated tobacco products, e-vapor devices, and oral smokeless products. Discusses the development, commercialization, and global distribution of these products, as well as their acceptance by adult smokers.",
       url_words=["products"]
    ),
    TopicDefinition(
       3,
       "Inclusion, Diversity",
-      "Highlighting the significance of fostering an inclusive workplace through initiatives, training, practices, and policies, while also integrating content featuring diversity metrics, successful case studies, and resources for cultivating diversity and inclusivity in organizational culture.",
+      "Emphasizes the importance of diversity and inclusion in the workplace, including gender equality and a range of skills. Discusses initiatives, practices, and resources aimed at fostering an inclusive culture and promoting diversity. Also highlights the role of diversity in driving innovation and the company's transformation towards a smoke-free future.",
       url_words=["inclusion-diversity"]
    ),
    TopicDefinition(
       4,
       "Leadership content",
-      "Centers on leadership within company, covering leadership principles, strategies, and insights from thought leaders, including articles, interviews, and perspectives, while also discussing effective communication, decision-making, team management, and inspiration.",
+      "Shares insights from leaders on the importance of agility, moral compass, and teamwork in driving change and achieving the company's smoke-free vision. Discusses the role of gender diversity in STEM fields and the need for leaders to challenge unconscious bias and learn from younger talent.",
       priority= 2
    ),
    TopicDefinition(
       5,
       "Investor Relations",
-      "Your comprehensive resource for financial performance, corporate governance, and transparent communication with investors, providing updates on results, reports, events, and essential investor resources.",
+      "Content related to financial performance, corporate governance, and transparent communication with investors, providing updates on results, reports, events, and essential investor resources.",
       url_words=["investor-relations", "inverstor"]
    ),
    TopicDefinition(
       6,
       "Our science",
-      "The scientific foundation of smoke-free vision, showcasing research, innovations, methodologies, technologies, and breakthroughs across various fields, including collaborations, experiments, publications, and applications.",
+      "Highlights the scientific research and innovation behind PMI's smoke-free vision and products. Discusses the importance of open dialogue, collaboration, and resilience in addressing global challenges and achieving a smoke-free future.",
       ["intervals", "science", "our-science"]
    ),
    TopicDefinition(
       7,
       "Smoke-free vision",
-      "Centers on societal and corporate mission, highlighting its dedication to providing millions of smokers with less harmful but satisfying alternatives through innovative smoke-free products, aiming to accelerate the transition towards a cigarette-free world.",
+      "Discusses PMI's mission to provide less harmful alternatives to traditional cigarettes and create a smoke-free world. Highlights the company's initiatives, partnerships, and efforts to raise awareness about these alternatives and counter misinformation.",
       url_words=["smoke-free-products"]
    ),
    TopicDefinition(
       8,
       "PMI Transformation",
-      "Centers on transformation from a cigarette-focused company to one offering improved smoke-free alternatives, marking a significant historical shift with organizational, management, and vision implications, aiming to drive positive societal change towards a smoke-free future.",
+      "Focuses on PMI's transformation from a traditional cigarette company to one offering smoke-free alternatives. Discusses the changes in sourcing, operations, commercialization, and revenue sources as part of this transformation. Also highlights the company's expansion into wellness and healthcare products.",
       url_words=["our-transformation"]
    ),
    TopicDefinition(
       9,
       "Sustainability",
-      "Exploring Environmental, Social, and Governance principles for a greener, more responsible future, encompassing diverse subjects like renewable energy, waste reduction, ethical sourcing, and sustainable development goals.",
-#      "Any aspects of corporate sustainability initiatives including sustainability in supply chain and more responsible future.",
-     priority= 2,
-     url_words=['sustainability']
+      "Discusses PMI's commitment to sustainability, including reducing post-consumer waste, addressing social impacts in its supply chain, and protecting human rights. Highlights the company's strategies, initiatives, and partnerships aimed at achieving these goals.",
+      priority= 2,
+      url_words=['sustainability']
    ),
    TopicDefinition(
       10,
       "Regulation",
-#      "Focuses on the need for a regulatory framework to encourage smoke-free products, highlighting how governments and public health bodies can regulate these alternatives to promote public health and reduce cigarette sales for a smoke-free future.",
-     "Explores strict regulations and enforcement on tobacco products, emphasizing the importance of innovation in smoke-free alternatives to address smoking-related harm while protecting public health.",
-     ["regulators", "regulation"],
-     priority= 2
+      "Discusses the regulations governing smoke-free products and PMI's marketing practices. Highlights the company's stance on these regulations and its advocacy for sensible, risk-based regulation of smoke-free products.",
+      ["regulators", "regulation"],
+      priority= 2
    ),
    TopicDefinition(
       11,
       "Jobs",
-      "Your gateway to explore career opportunities, offering valuable insights into job roles, qualifications, and the recruitment process, along with current job openings, application details, and the benefits of joining our organization.",
+      "Highlights job opportunities at PMI as part of the company's transformation towards a smoke-free future. Discusses the roles, responsibilities, and benefits of working at PMI, as well as the company's commitment to workplace flexibility and equal pay.",
       ["job-opportunities", "job-remotely", "job-details", "job-interview", "career"]
    ),
    TopicDefinition(
@@ -81,11 +79,11 @@ TOPICS_LIST : list[TopicDefinition] = [
       "Partnership and Engagement",
       "Collaborative efforts, strategic alliances, and community engagement fostering positive impact through meaningful engagement with various external entities."
    ),
-   TopicDefinition(
-      13,
-      "Leadership content",
-      "Any content that mentions senior management or top managers of a company (including SEO, COO, SVP, VP etc.) OR content created by them.",
-      priority= 2,
-      url_words=["leaders"]
-   )
+   # TopicDefinition(
+   #    13,
+   #    "Leadership content",
+   #    "Any content that mentions at least twice senior management or top managers of PMI (including SEO, COO, SVP, VP etc.) OR content created by them (as indicated by quotes or the use of a first person point of view).",
+   #    priority= 2,
+   #    url_words=["leaders"]
+   # )
 ]

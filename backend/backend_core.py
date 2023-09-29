@@ -209,6 +209,11 @@ class BackEndCore():
         if not self.backend_params.skip_url_words:
             topic_index_by_url = self.topic_manager.get_topic_by_url(url)
 
+        # if topic_index_by_url and score_topics_result.result_score and score_topics_result.result_score:
+        #     topic_index_by_url_score = score_topics_result.result_score[topic_index_by_url][0]
+        #     if topic_index_by_url_score < 0.8:
+        #         topic_index_by_url = None
+
         result_primary_topic_json = score_topics_result.primary_topic_json
         result_secondary_topic_json = score_topics_result.secondary_topic_json
     
