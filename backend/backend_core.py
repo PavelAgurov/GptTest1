@@ -218,6 +218,7 @@ class BackEndCore():
         result_secondary_topic_json = score_topics_result.secondary_topic_json
     
         main_topics = self.get_main_topics(
+                url,
                 topic_dict,
                 topic_index_by_url,
                 result_primary_topic_json, 
@@ -329,6 +330,7 @@ class BackEndCore():
         return TranslatedResult(translated_lang, translation_result.translation, False)
 
     def  get_main_topics(self,
+                        url : str,
                         topic_dict : dict[str, TopicDefinition],
                         topic_index_by_url : int,
                         result_primary_topic_json : any,
@@ -348,7 +350,12 @@ class BackEndCore():
         primary_topic_is_url = False
         if result_primary_topic_json: # we have primary topic from LLM
             primary_topic_index = result_primary_topic_json['topic_id']
-            primary_topic = topic_dict[primary_topic_index].name
+            if primary_topic_index in topic_dict:
+                primary_topic = topic_dict[primary_topic_index].name
+            else:
+                error_primary_topic_msg = f'Unknown primary_topic: {primary_topic_index}, URL: {url}'
+                print(error_primary_topic_msg)
+                self.backend_params.callbacks.report_error_callback(error_primary_topic_msg)
             primary_topic_score = result_primary_topic_json['score']
             primary_topic_explanation = result_primary_topic_json['explanation']
         if topic_index_by_url and primary_topic_index != topic_index_by_url: # we have other topic from URL - override
@@ -365,7 +372,12 @@ class BackEndCore():
         secondary_topic_explanation = ""
         if result_secondary_topic_json: # secondary topic from LLM
             secondary_topic_index = result_secondary_topic_json['topic_id']
-            secondary_topic = topic_dict[secondary_topic_index].name
+            if secondary_topic_index in topic_dict:
+                secondary_topic = topic_dict[secondary_topic_index].name
+            else:
+                error_secondary_topic_msg = f'Unknown secondary_topic: {secondary_topic_index}, URL: {url}'
+                print(error_secondary_topic_msg)
+                self.backend_params.callbacks.report_error_callback(error_secondary_topic_msg)
             secondary_topic_score = result_secondary_topic_json['score']
             secondary_topic_explanation = result_secondary_topic_json['explanation']
 
