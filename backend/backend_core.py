@@ -19,6 +19,7 @@ from backend.bulk_output import BulkOutput, BulkOutputParams
 from backend.html_processors.bs4_processor import get_plain_text_bs4
 from backend.gold_data import get_gold_data
 from data.parser_html_classes import HTML_CLASSES
+from backend.tuning_manager import TuningManager
 
 PRIORITY_THRESHOLD_ITEM = 0.5
 
@@ -67,12 +68,19 @@ class BuildOuputDataResult:
     data  : pd.DataFrame
     error : str
 
+@dataclass
+class TuningPrompt:
+    """Tuning prompt str"""
+    prompt : str
+    tokens : int
+
 class BackEndCore():
     """Main back-end class"""
 
     backend_params : BackendParams
     llm_manager    : LLMManager
     topic_manager  : TopicManager
+    tuning_manager : TuningManager
 
     def __init__(self, backend_params : BackendParams):
         self.backend_params = backend_params
@@ -81,8 +89,9 @@ class BackEndCore():
             backend_params.callbacks.used_tokens_callback,
             backend_params.callbacks.report_error_callback
         )
-        self.topic_manager = TopicManager()
-        self.llm_manager   = LLMManager(backend_params.open_api_key, llm_callbacks)
+        self.topic_manager  = TopicManager()
+        self.llm_manager    = LLMManager(backend_params.open_api_key, llm_callbacks)
+        self.tuning_manager = TuningManager()
 
     def report_status(self, status_str : str):
         """Report first line of status"""
@@ -409,7 +418,7 @@ class BackEndCore():
         """Build output data frame"""
         topic_list = self.topic_manager.get_topic_list()
         gold_data  = None
-        if bulk_output_params.inc_gold_data:
+        if bulk_output_params.inc_golden_data:
             gold_data = get_gold_data()
         
         error = None
@@ -418,3 +427,14 @@ class BackEndCore():
 
         data = BulkOutput().create_data(topic_list, bulk_result, gold_data, bulk_output_params)
         return BuildOuputDataResult(data, error)
+
+    def get_tuning_prompt(self, bulk_data : pd.DataFrame) -> TuningPrompt:
+        """Get tuning prompt"""
+        topic_list = self.topic_manager.get_topic_list()
+        tuning_prompt = self.tuning_manager.get_tuning_prompt(bulk_data, topic_list)
+        tokens_in_prompt = self.llm_manager.get_token_count(tuning_prompt)
+        return TuningPrompt(tuning_prompt, tokens_in_prompt)
+    
+    def run_tuning_prompt(self, tuning_prompt : str) -> str:
+        """Get tuning result"""
+        return len(tuning_prompt)

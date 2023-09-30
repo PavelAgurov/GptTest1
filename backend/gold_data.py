@@ -1,5 +1,5 @@
 """
-    Gold data methods
+    Golden data methods
 """
 # pylint: disable=C0301,C0103,C0303,C0304,C0305,C0411,E1121,R0903
 
@@ -8,23 +8,23 @@ from dataclasses import dataclass
 import pandas as pd
 
 @dataclass
-class GoldDataItem:
-    """Gold data item"""
+class GoldenDataItem:
+    """Golden data item"""
     url             : str
     primary_topic   : str
     secondary_topic : str
 
 @dataclass
-class GoldData:
-    """Gold data"""
-    data  : list[GoldDataItem]
+class GoldenData:
+    """Golden data"""
+    data  : list[GoldenDataItem]
     error : str
 
 
 GOLDEN_DATA_FILE = r'golden-data\\golden_data.xlsx'
 
-def get_gold_data() -> GoldData:
-    """Load gold data"""
+def get_gold_data() -> GoldenData:
+    """Load golden data"""
     
     if not os.path.isfile(GOLDEN_DATA_FILE):
         return None
@@ -34,7 +34,7 @@ def get_gold_data() -> GoldData:
         gold_data_excel = gold_data_excel.fillna('')  
     except Exception as error: # pylint: disable=W0718
         print(error)
-        return GoldData(None, error)
+        return GoldenData(None, error)
 
     if gold_data_excel.shape[1] < 3:
         print('Golden data must have 3 columns: URL, primary topic, secondary topic')
@@ -46,7 +46,7 @@ def get_gold_data() -> GoldData:
         s = str(s)
         return s.strip()
 
-    gold_data = list[GoldDataItem]()
+    gold_data = list[GoldenDataItem]()
     for row in gold_data_excel.values:
         url = strip_str(row[0])
         if not url: # allow empty lines
@@ -58,7 +58,7 @@ def get_gold_data() -> GoldData:
         if not primary and not secondary:
             continue
 
-        gold_data.append(GoldDataItem(
+        gold_data.append(GoldenDataItem(
             url,
             primary,
             secondary
@@ -69,4 +69,4 @@ def get_gold_data() -> GoldData:
     if len(url_set) != len(list(set(url_set))):
         error = "golden_data.xlsx has duplicated URLs"
 
-    return GoldData(gold_data, error)
+    return GoldenData(gold_data, error)

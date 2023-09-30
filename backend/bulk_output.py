@@ -6,7 +6,7 @@ import pandas as pd
 from dataclasses import dataclass
 
 from backend.base_classes import ScoreResultItem, TopicDefinition
-from backend.gold_data import GoldData
+from backend.gold_data import GoldenData
 from utils import str2lower
 
 @dataclass
@@ -14,7 +14,7 @@ class BulkOutputParams:
     """Parameters for create output data"""
     inc_explanation  : bool
     inc_source       : bool
-    inc_gold_data    : bool
+    inc_golden_data    : bool
     site_map_only    : bool
 
 class BulkOutput():
@@ -23,51 +23,66 @@ class BulkOutput():
     def calculate_gold_data(
             self,
             url : str,
-            primary_topic   : str,
-            secondary_topic : str,
-            gold_data_dict  : dict[str, GoldData],
-            topic_dict      : dict[str, int],
-            is_primary : bool
+            primary_topic     : str,
+            secondary_topic   : str,
+            gold_data_dict    : dict[str, GoldenData],
+            topic_dict        : dict[str, TopicDefinition],
+            score_data        : dict[int, tuple[float, str]],
+            is_primary        : bool
         ) -> []:
-        """Return primary gold data"""
+        """Return primary golden data"""
         # no golden data at all
         if not gold_data_dict:
-            return [None, None]
+            return [None, None, None, None, None]
         
         # no golden data for this URL
         u_url = url.lower().strip()
         if u_url not in gold_data_dict:
-            return [None, None]
+            return [None, None, None, None, None]
         
         golden_data = gold_data_dict[u_url]
-        if is_primary:
-            first_topic         = primary_topic
-            first_golden_topic  = golden_data.primary_topic
-            second_golden_topic = golden_data.secondary_topic
-        else:
-            first_topic         = secondary_topic
-            first_golden_topic  = golden_data.secondary_topic
-            second_golden_topic = golden_data.primary_topic
 
-        if not first_golden_topic:
-            return [None, None]
+        first_topic_name = None
+        if is_primary:
+            first_topic_name    = primary_topic
+            first_golden_topic_name  = golden_data.primary_topic
+            second_golden_topic_name = golden_data.secondary_topic
+        else:
+            first_topic_name    = secondary_topic
+            first_golden_topic_name  = golden_data.secondary_topic
+            second_golden_topic_name = golden_data.primary_topic
+
+        if not first_golden_topic_name:
+            return [None, None, None, None, None]
         
-        if str2lower(first_golden_topic) not in topic_dict:
-            return [first_golden_topic, "ERROR GOLDEN DATA"]
+        if str2lower(first_golden_topic_name) not in topic_dict:
+            return [first_golden_topic_name, "ERROR GOLDEN DATA", None, None, None]
+        first_golden_topic = topic_dict[str2lower(first_golden_topic_name)]
+        first_golden_topic_index = first_golden_topic.id
+        first_golden_topic_priority = first_golden_topic.priority
 
         topic_correct = 0.0
-        if str2lower(first_topic) == str2lower(first_golden_topic): # exact fit
+        if str2lower(first_topic_name) == str2lower(first_golden_topic_name): # exact fit
             topic_correct = 1.0
-        elif str2lower(first_topic) == str2lower(second_golden_topic): # expected, but as other main topic
+        elif str2lower(first_topic_name) == str2lower(second_golden_topic_name): # expected, but as other main topic
             topic_correct = 0.5
 
-        return [first_golden_topic, topic_correct]
+        first_golden_score = 0
+        first_topic_expl   = None
+        if score_data:
+            if first_golden_topic_index in score_data:
+                first_golden_score = score_data[first_golden_topic_index][0]
+                first_topic_expl   = score_data[first_golden_topic_index][1]
+            else:
+                first_golden_score = "ERROR"
+
+        return [first_golden_topic_name, first_golden_score, first_topic_expl, first_golden_topic_priority, topic_correct]
 
     def create_data(
             self,
             topic_list  : list[TopicDefinition],
             bulk_result : list[ScoreResultItem], 
-            gold_data   : GoldData,
+            golden_data   : GoldenData,
             params : BulkOutputParams
         ) -> pd.DataFrame:
         """Create output data"""
@@ -75,21 +90,33 @@ class BulkOutput():
         if params.site_map_only:
             return self.build_sitemap_output(bulk_result)
 
-        gold_data_dict = {}
-        if params.inc_gold_data and gold_data and gold_data.data:
-            gold_data_dict = {gd.url.lower().strip() : gd for gd in gold_data.data}
+        golden_data_dict = {}
+        if params.inc_golden_data and golden_data and golden_data.data:
+            golden_data_dict = {gd.url.lower().strip() : gd for gd in golden_data.data}
 
-        topic_dict = {t.name.lower().strip() : t.id for t in topic_list}
+        topic_dict = {t.name.lower().strip() : t for t in topic_list}
 
         bulk_columns = ['URL', 'Input length', 'Extracted length', 'Lang', 'Translated length']
         bulk_columns.extend(['Primary', 'Primary score'])
-        if params.inc_gold_data:
-            bulk_columns.extend(['Gold Primary', 'Primary correct'])
+        if params.inc_golden_data:
+            bulk_columns.extend([
+                'Golden Primary', 
+                'Golden primary score', 
+                'Golden primary explanation', 
+                'Golden primary priority', 
+                'Primary correct'
+            ])
         if params.inc_explanation:
             bulk_columns.extend(['Primary explanation'])
         bulk_columns.extend(['Secondary', 'Secondary score'])
-        if params.inc_gold_data:
-            bulk_columns.extend(['Gold Secondary', 'Secondary correct'])
+        if params.inc_golden_data:
+            bulk_columns.extend([
+                'Golden Secondary', 
+                'Golden secondary score', 
+                'Golden secondary explanation', 
+                'Golden secondary priority', 
+                'Secondary correct'
+            ])
         if params.inc_explanation:
             bulk_columns.extend(['Secondary explanation'])
         if params.inc_source:
@@ -117,13 +144,16 @@ class BulkOutput():
             else:
                 bulk_row.extend([None, None])
             
-            if params.inc_gold_data:
+            score_data = row.ordered_result_score
+
+            if params.inc_golden_data:
                 bulk_row.extend(self.calculate_gold_data(
                     row.current_url,
                     row.get_main_topic_primary(),
-                    row.get_main_topic_secondary(),
-                    gold_data_dict, 
-                    topic_dict, 
+                    row.get_main_topic_primary(),
+                    golden_data_dict, 
+                    topic_dict,
+                    score_data,
                     True
                 ))
 
@@ -138,13 +168,14 @@ class BulkOutput():
             else:
                 bulk_row.extend([None, None])
 
-            if params.inc_gold_data:
+            if params.inc_golden_data:
                 bulk_row.extend(self.calculate_gold_data(
-                    row.current_url, 
+                    row.current_url,
                     row.get_main_topic_primary(),
-                    row.get_main_topic_secondary(),
-                    gold_data_dict, 
-                    topic_dict, 
+                    row.get_main_topic_primary(),
+                    golden_data_dict,
+                    topic_dict,
+                    score_data,
                     False
                 ))
 
@@ -157,7 +188,6 @@ class BulkOutput():
             if params.inc_source:
                 bulk_row.extend([row.full_translated_text])
             
-            score_data = row.ordered_result_score
             for topic_item in topic_list:
                 if score_data and topic_item.id in score_data:
                     topic_score = score_data[topic_item.id]

@@ -28,7 +28,17 @@ FOOTER_LIST = ['Quick links']
 
 # --------------------------------- Sessions
 
-SESSION_TOKEN_COUNT = 'token_count'
+SESSION_TOKEN_COUNT   = 'token_count'
+SESSION_TUNING_PROMPT_STR = 'tuning_prompt_str'
+SESSION_TUNING_PROMPT_TOKENS = 'tuning_prompt_tokens'
+SESSION_BULK_RESULT   = 'bulk_result'
+
+if SESSION_TUNING_PROMPT_STR not in st.session_state:
+    st.session_state[SESSION_TUNING_PROMPT_STR] = ""
+if SESSION_BULK_RESULT not in st.session_state:
+    st.session_state[SESSION_BULK_RESULT] = None
+if SESSION_TUNING_PROMPT_TOKENS not in st.session_state:
+    st.session_state[SESSION_TUNING_PROMPT_TOKENS] = None
 
 # ------------------------------- UI
 
@@ -50,7 +60,9 @@ st.set_page_config(page_title="PMI Topics Demo", layout="wide")
 st.title('PMI Topics Demo')
 streamlit_hack_remove_top_space()
 
-tab_process, tab_settings, tab_topic_editor, tab_debug = st.tabs(["Process URL(s)", "Settings", "Topics", "Debug"])
+tab_process, tab_settings, tab_topic_editor, tab_debug, tb_tuning = st.tabs(["Process URL(s)", "Settings", "Topics", "Debug", "Tuning"])
+
+export_container = None
 
 site_map_only = False
 with tab_process:
@@ -130,6 +142,16 @@ with tab_topic_editor:
 with tab_debug:
     if mode_selector == MODE_ONE:
         debug_json_container = st.expander(label="Score json").empty()
+
+run_tuning_button = None
+with tb_tuning:
+    tuning_prompt = st.text_area(label="Tuning prompt:", height=300, value= st.session_state[SESSION_TUNING_PROMPT_STR])
+    tuning_prompt_generate_button = st.button("Generate Prompt")
+    tuning_prompt_tokens = st.session_state[SESSION_TUNING_PROMPT_TOKENS]
+    if tuning_prompt_tokens:
+        st.info(f'Tokens in prompt: {tuning_prompt_tokens}')
+        run_tuning_button = st.button("Run tuning")
+    tuning_result_container = st.empty()
 
 with st.sidebar:
     header_container = st.container()
@@ -244,6 +266,24 @@ def show_topic_editor(topic_manager : TopicManager):
     )
     return editor_control
 
+def show_bulk_data_from_sesstion():
+    """Show bulk data result"""
+    data = st.session_state[SESSION_BULK_RESULT]
+    if data is None:
+        return
+    output_container.dataframe(data, use_container_width=True, hide_index=True)
+
+    if export_container:
+        csv_data = convert_df_to_csv(data)
+        export_container.download_button(
+            label='Download Excel', 
+            data = csv_data,  
+            file_name= OUTPUT_DATA_FILE, 
+            mime='text/csv', 
+            on_click= skip_callback
+        )
+
+
 @st.cache_data
 def convert_df_to_csv(df_csv : pd.DataFrame):
     """Convert DataFrame into csv and cahce it"""
@@ -281,13 +321,25 @@ back_end = BackEndCore(backend_params)
 
 topic_editor_control = show_topic_editor(back_end.topic_manager)
 if update_topic_editor(topic_editor_control, back_end.topic_manager):
-    st.experimental_rerun()
+    st.rerun()
 
 show_total_tokens()
 
 if topics_reset_button:
     back_end.topic_manager.reset_all_topics()
-    st.experimental_rerun()
+    st.rerun()
+
+if tuning_prompt_generate_button:
+    tuning_prompt = back_end.get_tuning_prompt(st.session_state[SESSION_BULK_RESULT])
+    st.session_state[SESSION_TUNING_PROMPT_STR   ] = tuning_prompt.prompt
+    st.session_state[SESSION_TUNING_PROMPT_TOKENS] = tuning_prompt.tokens
+    st.rerun()
+
+if run_tuning_button:
+    tuning_prompt = st.session_state[SESSION_TUNING_PROMPT_STR]
+    tuning_result = back_end.run_tuning_prompt(tuning_prompt)
+    tuning_result_container.markdown(tuning_result)
+    st.stop()
 
 csv_topic_data = convert_df_to_csv(topic_editor_control)
 export_topic_editor_container.download_button(
@@ -299,7 +351,10 @@ export_topic_editor_container.download_button(
 )
 
 if not run_button:
+    show_bulk_data_from_sesstion()
     st.stop()
+
+st.session_state[SESSION_BULK_RESULT] = None
 
 input_url_list = []
 if mode_selector == MODE_ONE:
@@ -362,14 +417,5 @@ bulk_output_params = BulkOutputParams(
 df_bulk_result = back_end.build_ouput_data(bulk_result, bulk_output_params)
 if df_bulk_result.error:
     bulk_error_container.markdown(df_bulk_result.error)
-output_container.dataframe(df_bulk_result.data, use_container_width=True, hide_index=True)
-
-csv_data = convert_df_to_csv(df_bulk_result.data)
-export_container.download_button(
-    label='Download Excel', 
-    data = csv_data,  
-    file_name= OUTPUT_DATA_FILE, 
-    mime='text/csv', 
-    on_click= skip_callback
-)
-      
+st.session_state[SESSION_BULK_RESULT] = df_bulk_result.data
+show_bulk_data_from_sesstion()

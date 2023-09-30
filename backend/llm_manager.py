@@ -117,6 +117,10 @@ class LLMManager():
         """Report status"""
         self.callbacks.report_status_callback(status_str)
 
+    def get_token_count(self, text : str) -> int:
+        """Get count of tokens in text"""
+        return len(self.token_estimator.encode(text))
+
     def refine_text(self, text : str) -> str:
         """Create summary by refining"""
         self.report_status('Request LLM for summary...')
