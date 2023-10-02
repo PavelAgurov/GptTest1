@@ -68,9 +68,9 @@ site_map_only = False
 with tab_process:
     mode_selector              = st.radio(label="Mode", options=[MODE_ONE, MODE_BULK, MODE_EXCEL, MODE_SITEMAP], index=0, horizontal=True, label_visibility="hidden")
     col_s1, col_s2, col_s3 = st.columns(3)
-    inc_source_checbox         = col_s1.checkbox(label= "Include source in bulk output", disabled= mode_selector == MODE_ONE)
-    inc_explanation_checkbox   = col_s2.checkbox(label= "Include explanation in bulk output", disabled= mode_selector == MODE_ONE)
-    add_gold_data_checkbox     = col_s3.checkbox(label= "Add golden data", value=True)
+    inc_source_checbox         = col_s1.checkbox(label= "Include source in bulk output", disabled= mode_selector == MODE_ONE, value=True)
+    inc_explanation_checkbox   = col_s2.checkbox(label= "Include explanation in bulk output", disabled= mode_selector == MODE_ONE, value=True)
+    add_gold_data_checkbox     = col_s3.checkbox(label= "Add golden data", disabled= mode_selector == MODE_ONE, value=True)
 
     read_mode_list = [e.value for e in ReadModeHTML]
     read_mode = st.radio(
@@ -126,9 +126,10 @@ with tab_process:
 with tab_settings:
     open_api_key = st.text_input("OpenAPI Key: ", "", key="open_api_key")
     skip_translation = st.checkbox(label= "Skip translation", value=True)
-    skip_url_words   = st.checkbox(label= "Do not use url words", value=False)
-    priority_threshold_main = st.number_input(label="Priority threshold for primary/secondary (1 - always, 0 - never)", 
-                                              min_value=0.0, max_value=1.0, value=0.5, step=0.1)
+    override_by_url_words = st.checkbox(label= "Override primary topic by url words detection", value=False)
+    url_words_kf = st.number_input(label="Kf for Url words (0 - off)", min_value=0.0, max_value=5.0, value=0.0)
+    skip_summary     = st.checkbox(label= "Do not use summary", value=False)
+    skip_topic_priority = st.checkbox(label= "Do not use topic priority", value=False)
     footer_texts = st.text_area("Footers", value= '\n'.join(FOOTER_LIST))
 
 with tab_topic_editor:
@@ -298,8 +299,10 @@ else:
 backend_params = BackendParams(
     site_map_only,
     skip_translation,
-    skip_url_words,
-    priority_threshold_main,
+    override_by_url_words,
+    url_words_kf,
+    skip_summary,
+    skip_topic_priority,
     LLM_OPENAI_API_KEY,
     BackendCallbacks(
         report_status,

@@ -12,7 +12,7 @@ def str2lower(text : str) -> str:
     """Lower case of text"""
     if not text:
         return None
-    return text.lower()
+    return text.lower().strip()
 
 def parse_llm_xml(text : str, variables : list[str]) -> dict[str, str]:
     """Parse XML for LLM"""

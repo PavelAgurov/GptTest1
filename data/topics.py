@@ -28,7 +28,7 @@ TOPICS_LIST : list[TopicDefinition] = [
       4,
       "Leadership content",
       "Shares insights from leaders on the importance of agility, moral compass, and teamwork in driving change. Discusses the role of gender diversity and the need for leaders to challenge unconscious bias.",
-      priority= 2
+      priority= 2.2
    ),
    TopicDefinition(
       5,
@@ -40,7 +40,8 @@ TOPICS_LIST : list[TopicDefinition] = [
       6,
       "Our science",
       "Highlights the scientific research and innovation behind PMI's smoke-free products. Discusses the importance of open dialogue, collaboration, and resilience in achieving a smoke-free future.",
-      ["intervals", "science", "our-science"]
+      priority= 1.6,
+      url_words=["intervals", "science", "our-science"]
    ),
    TopicDefinition(
       7,
@@ -66,7 +67,7 @@ TOPICS_LIST : list[TopicDefinition] = [
       "Regulation",
       "Discusses the regulations governing smoke-free products and PMI's stance on these regulations. Highlights the need for sensible, risk-based regulation and advocacy for smoke-free products.",
       ["regulators", "regulation"],
-      priority= 2
+      priority= 2.5
    ),
    TopicDefinition(
       11,
@@ -83,7 +84,7 @@ TOPICS_LIST : list[TopicDefinition] = [
    #    13,
    #    "Leadership content",
    #    "Any content that mentions at least twice senior management or top managers of PMI (including SEO, COO, SVP, VP etc.) OR content created by them (as indicated by quotes or the use of a first person point of view).",
-   #    priority= 2,
+   #    priority= 2.5,
    #    url_words=["leaders"]
    # )
 ]

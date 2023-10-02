@@ -2,9 +2,8 @@
     Tuning manager
 """
 
-# pylint: disable=C0301,C0103,C0303,C0304,C0305,C0411,E1121
+# pylint: disable=C0301,C0103,C0303,C0304,C0305,C0411,E1121,R0903
 
-from dataclasses import dataclass
 import pandas as pd
 
 from backend.base_classes import TopicDefinition

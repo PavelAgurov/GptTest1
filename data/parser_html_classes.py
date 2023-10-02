@@ -4,5 +4,5 @@
 
 
 HTML_CLASSES = {
-    'www.pmi.com': ['content-block', 'is-content', 'entry--description']
+    'www.pmi.com': ['content-block', 'is-content', 'entry--description', 'sf_colsIn']
 }

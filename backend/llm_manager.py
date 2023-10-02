@@ -19,7 +19,7 @@ import backend.llm.prompts as prompts
 from backend.llm.refine import RefineChain
 from backend.text_processing import text_to_paragraphs, limit_text_tokens
 from backend.base_classes import TopicDefinition
-from utils import get_llm_json, parse_llm_xml
+from utils import get_llm_json, parse_llm_xml, str2lower
 
 @dataclass
 class LlmCallbacks:
@@ -43,8 +43,6 @@ class ScoreTopicsResult:
     error                : str
     debug_json_score     : str
     result_score         : {}
-    primary_topic_json   : {}
-    secondary_topic_json : {}
 
 class LLMManager():
     """LLM Manager"""
@@ -164,83 +162,88 @@ class LLMManager():
         """Remove dagerous chars from text"""
         return text.replace("“", "'").replace("“", "”").replace("\"", "'").replace("«", "'").replace("»", "'")
 
-    def score_topics(self, url : str, text : str, topic_chunks : list[list[TopicDefinition]]) -> ScoreTopicsResult:
+    def score_topics(self, url : str, text : str, topic_list : list[TopicDefinition]) -> ScoreTopicsResult:
         """Score all topics"""
 
         result_score = {}
-        result_primary_topic_json   = {}
-        result_secondary_topic_json = {}
-        debug_json_score = []
         total_token_count = 0
         error_list = []
 
         current_paragraph = self.clean_up_text(text)
-        for j, topic_def in enumerate(topic_chunks):
-            topics_for_prompt = "\n".join([f'{t.id}. {t.description}' for t in topic_def])
 
-            self.report_status(f'Request LLM to score, topics chunk: {j+1}/{len(topic_chunks)}...')
+        #topics_for_prompt = "\n".join([f'{t.id}. {t.description}' for t in topic_def])
 
-            prompt_without_text = self.score_chain.prompt.format(topics = topics_for_prompt, article = '', url = url)
-            prompt_without_text_tokens = len(self.token_estimator.encode(prompt_without_text))
-            max_tokens_score = self.MAX_MODEL_TOKENS - self.MAX_TOKENS_SCORE - prompt_without_text_tokens - 10
+        topic_dict = {t.name.lower().strip() : t for t in topic_list}
 
-            extracted_score = None
-            cut_information = None
-            try:
-                reduced_text = limit_text_tokens(current_paragraph, self.token_estimator,  max_tokens_score) # cut if needed
-                reduced_text_tokens = len(self.token_estimator.encode(reduced_text))
-                cut_information = f'current_paragraph size={len(current_paragraph)}), max_tokens_score={max_tokens_score}, prompt_without_text_tokens={prompt_without_text_tokens}, reduced_text_tokens={reduced_text_tokens}'
-                if reduced_text != current_paragraph:
-                    print(f'prompt_without_text_tokens={prompt_without_text_tokens}')
-                    cut_information = f'{cut_information}. CUT TEXT before score: {len(current_paragraph)} => {len(reduced_text)} ({reduced_text_tokens} tokens)'
-                    print(cut_information)
-                with get_openai_callback() as cb:
-                    extracted_score = self.score_chain.run(topics = topics_for_prompt, article = reduced_text, url = url)
-                total_token_count += cb.total_tokens
-                self.report_status(f'Done. Got {len(extracted_score)} chars.')
-                extracted_score_tokens = len(self.token_estimator.encode(extracted_score))
-                print(f'extracted_score_tokens={extracted_score_tokens}')
-                debug_json_score.append(extracted_score)
-            except Exception as error: # pylint: disable=W0718
-                error_list.append(f'Error: {error}\n\n{traceback.format_exc()}. URL: {url}. {cut_information}')
+        topics_for_prompt_list = []
+        topics_for_prompt_list.append('<topic_list>')
+        for t in topic_list:
+            topics_for_prompt_list.append('<topic>')
+            topics_for_prompt_list.append(f'<name>{t.name}</name>')
+            topics_for_prompt_list.append(f'<description>{t.description}</description>')
+            topics_for_prompt_list.append('</topic>')
+        topics_for_prompt_list.append('</topic_list>')
+        topics_for_prompt = "\n".join(topics_for_prompt_list)
 
-            if not extracted_score:
-                continue
+        self.report_status('Request LLM to score...')
 
+        prompt_without_text = self.score_chain.prompt.format(topics = topics_for_prompt, text = '')
+        prompt_without_text_tokens = len(self.token_estimator.encode(prompt_without_text))
+        max_tokens_score = self.MAX_MODEL_TOKENS - self.MAX_TOKENS_SCORE - prompt_without_text_tokens - 10
+
+        extracted_score = None
+        cut_information = None
+        try:
+            reduced_text = limit_text_tokens(current_paragraph, self.token_estimator,  max_tokens_score) # cut if needed
+            reduced_text_tokens = len(self.token_estimator.encode(reduced_text))
+            cut_information = f'current_paragraph size={len(current_paragraph)}), max_tokens_score={max_tokens_score}, prompt_without_text_tokens={prompt_without_text_tokens}, reduced_text_tokens={reduced_text_tokens}'
+            if reduced_text != current_paragraph:
+                print(f'prompt_without_text_tokens={prompt_without_text_tokens}')
+                cut_information = f'{cut_information}. CUT TEXT before score: {len(current_paragraph)} => {len(reduced_text)} ({reduced_text_tokens} tokens)'
+                print(cut_information)
+
+            prompt_full = self.score_chain.prompt.format(topics = topics_for_prompt, text = reduced_text)
+            print(prompt_full)
+
+            with get_openai_callback() as cb:
+                extracted_score = self.score_chain.run(topics = topics_for_prompt, text = reduced_text)
+            total_token_count += cb.total_tokens
+            self.report_status(f'Done. Got {len(extracted_score)} chars.')
+            extracted_score_tokens = len(self.token_estimator.encode(extracted_score))
+            print(f'extracted_score_tokens={extracted_score_tokens}')
+        except Exception as error: # pylint: disable=W0718
+            error_list.append(f'Error: {error}\n\n{traceback.format_exc()}. URL: {url}. {cut_information}')
+
+        if extracted_score:
             try:
                 self.report_status('Extract result...')
                 extracted_score_json = get_llm_json(extracted_score)
                 self.report_status('')
 
-                primary_topic_json = extracted_score_json['primary_topic']
-                if not result_primary_topic_json or result_primary_topic_json['score'] < primary_topic_json['score']:
-                    result_primary_topic_json = primary_topic_json
-
-                secondary_topic_json = extracted_score_json['secondary_topic']
-                if not result_secondary_topic_json or result_secondary_topic_json['score'] < secondary_topic_json['score']:
-                    result_secondary_topic_json = secondary_topic_json
-
                 for t in extracted_score_json['topics']:
-                    current_score = 0
-                    topic_id = t["topicID"]
-                    if topic_id in result_score:
-                        current_score = result_score[topic_id][0]
-                    new_score = t["score"]
-                    if (new_score > current_score) or (current_score == 0):
-                        result_score[topic_id] = [new_score, t["explanation"]]
+                    topic_name        = t['name']
+                    topic_score       = t['score']
+                    topic_explanation = t['explanation']
+
+                    topic_name_lower = str2lower(topic_name)
+                    if topic_name_lower not in topic_dict:
+                        error_list.append(f'Url: {url}. Topic name {topic_name} was not found in topic list')
+                        continue
+                    topic_item = topic_dict[topic_name_lower]
+                    result_score[topic_item.id] = [topic_score, topic_explanation]
 
             except Exception as error: # pylint: disable=W0718
-                error_list.append(f'Error:\n\n{extracted_score}\n\nError: {error}\n\n{traceback.format_exc()}')
-            
+                error_list.append(f'Error:\n\n{extracted_score}\n\nError: {error}\n\n{traceback.format_exc()}. Url: {url}')
+        else:
+            error_list.append(f'Empty extracted_score\n\n. Url: {url}')
+
         self.report_status('')
 
         result = ScoreTopicsResult(
             total_token_count,
             '\n'.join(error_list),
-            '\n'.join(debug_json_score),
-            result_score,
-            result_primary_topic_json,
-            result_secondary_topic_json
+            extracted_score,
+            result_score
         )
 
         return result

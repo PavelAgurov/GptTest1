@@ -20,9 +20,9 @@ class TopicPriority:
 class TopicManager():
     """Topic manager"""
 
-    topic_chunks : list[list[TopicDefinition]]
-    topic_dict   : dict[int, TopicDefinition]
-    url_words    : dict[str, TopicPriority]
+    topic_list : list[TopicDefinition]
+    topic_dict : dict[int, TopicDefinition]
+    url_words  : dict[str, TopicPriority]
 
     __DISK_FOLDER = '.topics'
     __TOPIC_FILE = 'topics.json'
@@ -40,37 +40,25 @@ class TopicManager():
         os.makedirs(self.__DISK_FOLDER, exist_ok=True)
 
         if not self.load_from_disk():
-            self.topic_chunks = self.__build_chunks(TOPICS_LIST)
+            self.topic_list = TOPICS_LIST
 
-    def __build_chunks(self, topic_list : list[TopicDefinition]):
-        return [topic_list] # utils.grouper(TOPICS_LIST, 4)
-
-    def get_topic_chunks(self) -> list[list[TopicDefinition]]:
-        """Get topic chunks"""
-        return self.topic_chunks
+    def get_topic_list(self) -> list[TopicDefinition]:
+        """Get topic list"""
+        return self.topic_list
     
     def get_topic_dict(self) -> dict[int, TopicDefinition]:
         """Return topic dict [topic_id, TopicDefinition]"""
         return self.topic_dict
     
-    def get_topic_by_url(self, url : str) -> int:
+    def get_topics_by_url(self, url : str) -> list[TopicPriority]:
         """Check if URL is relevant to some topic"""
         detected_list = list[TopicPriority]()
         for url_word_item in self.url_words.items():
             if url_word_item[0] in url:
                 detected_list.append(url_word_item[1])
-        if not detected_list:
-            return None
-        detected_list = sorted(detected_list, key=lambda x: x.topic_priority, reverse=True)
-        return detected_list[0].topic_index
-        
-    
-    def get_topic_list(self) -> list[TopicDefinition]:
-        """Return all topics"""
-        result = list[TopicDefinition]()
-        for topic_chunk in self.topic_chunks:
-            result.extend(topic_chunk)
-        return result
+        if detected_list:
+            detected_list = sorted(detected_list, key=lambda x: x.topic_priority, reverse=True)
+        return detected_list
    
     def save_topic_descriptions(self, updated_list: list[TopicDefinition]):
         """Save updated descriptions"""
@@ -79,8 +67,7 @@ class TopicManager():
         for topic in new_copy:
             if topic.id in new_descriptions:
                 topic.description = new_descriptions[topic.id]
-        
-        self.topic_chunks = self.__build_chunks(new_copy)
+        self.topic_list = new_copy
 
         topic_list = TopicList(new_copy)
         json_str = topic_list.to_json(indent=4)  # pylint: disable=E1101
@@ -96,7 +83,7 @@ class TopicManager():
         with open(file_name, "rt", encoding="utf-8") as f:
             json_str= f.read()
         topic_list : TopicList = TopicList.from_json(json_str) # pylint: disable=E1101
-        self.topic_chunks = self.__build_chunks(topic_list.topics)
+        self.topic_list = topic_list.topics
         return True
 
     def reset_all_topics(self):
@@ -105,5 +92,5 @@ class TopicManager():
         if not os.path.isfile(file_name):
             return
         os.remove(file_name)
-        self.topic_chunks = self.__build_chunks(TOPICS_LIST)
+        self.topic_list = copy.deepcopy(TOPICS_LIST)
 
