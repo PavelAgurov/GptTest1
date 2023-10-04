@@ -13,7 +13,7 @@ import pandas as pd
 
 from backend.llm_manager import LLMManager, LlmCallbacks, ScoreTopicsResult, TranslationResult
 from backend.text_processing import text_extractor
-from backend.topic_manager import TopicManager, TopicPriority
+from backend.topic_manager import TopicManager, TopicDetectedByURL
 from backend.base_classes import TopicScoreItem, MainTopics, ScoreResultItem, TopicDefinition
 from backend.bulk_output import BulkOutput, BulkOutputParams
 from backend.html_processors.bs4_processor import get_plain_text_bs4
@@ -45,15 +45,16 @@ class BackendCallbacks:
 @dataclass
 class BackendParams:
     """Backend params"""
-    site_map_only    : bool
-    skip_translation : bool
-    override_by_url_words   : bool
-    url_words_kf     : float
-    skip_summary     : bool
-    skip_topic_priority : bool
-    open_api_key     : str
-    callbacks        : BackendCallbacks
-    footer_texts     : list[str]
+    site_map_only      : bool
+    skip_translation   : bool
+    override_by_url_words      : bool
+    override_by_url_words_less : float
+    url_words_add       : float
+    skip_summary       : bool
+    use_topic_priority : bool
+    open_api_key       : str
+    callbacks          : BackendCallbacks
+    footer_texts       : list[str]
 
 @dataclass
 class TranslatedResult:
@@ -114,9 +115,7 @@ class BackEndCore():
         if loading_mode_bs in [ReadModeHTML.BS4.value, ReadModeHTML.MIXED.value]:
             domain = urlparse(url).netloc
 
-            html_classes_to_parse = None
-            if domain in HTML_CLASSES:
-                html_classes_to_parse = HTML_CLASSES[domain]
+            html_classes_to_parse = HTML_CLASSES.get(domain, None)
 
             with urllib.request.urlopen(url) as f:
                 html = f.read()
@@ -211,6 +210,14 @@ class BackEndCore():
         self.backend_params.callbacks.used_tokens_callback(score_topics_result.used_tokens)
         self.report_substatus('')
 
+        self.report_substatus('Detect Leaders...')
+        leaders_result = self.llm_manager.detect_leaders(
+                                                    url,
+                                                    full_translated_text
+                                                )
+        print(leaders_result)
+        self.report_substatus('')
+
         if score_topics_result.error:
             self.backend_params.callbacks.report_error_callback(score_topics_result.error)
             return ScoreResultItem.Error(url, score_topics_result.error)
@@ -220,8 +227,10 @@ class BackEndCore():
         # topics_score_ordered : dict {topic_index: [score of topic, explanation]}
         topics_score_ordered = collections.OrderedDict(sorted(score_topics_result.result_score.items()))
 
-        # topic detected by URL
-        topic_index_by_url_list : list[TopicPriority] = self.topic_manager.get_topics_by_url(url)
+        # topic detected by URL, sorted by detected position
+        topic_index_by_url_list : list[TopicDetectedByURL] = self.topic_manager.get_topics_by_url(url)
+        print(f'topic_index_by_url_list={topic_index_by_url_list}')
+        topics_by_url_info = ','.join([f'{topic_dict[t.topic_index].name}[{t.url_position}]' for t in topic_index_by_url_list])
 
         topics_score_list = list[TopicScoreItem]()
         for score_item in score_topics_result.result_score.items():
@@ -232,20 +241,20 @@ class BackEndCore():
                 self.backend_params.callbacks.report_error_callback(f'Unknown topic index. JSON: {topics_score_ordered}. URL: {url}')
                 continue
             
-            if not self.backend_params.skip_topic_priority:
+            if self.backend_params.url_words_add > 0:
+                for topic_index_by_url in topic_index_by_url_list:
+                    if  topic_index_by_url.topic_index == score_item_topic_index:
+                        original_topic_score = score_item_topic_score
+                        score_item_topic_score = score_item_topic_score + self.backend_params.url_words_add
+                        score_item_topic_expln = f'!{score_item_topic_expln}. Detected by URL: {original_topic_score:.2f}=>{score_item_topic_score:.2f}'
+                        break
+
+            if self.backend_params.use_topic_priority:
                 topic_priority = topic_dict[score_item_topic_index].priority
                 if topic_priority and topic_priority > 0 and score_item_topic_score > 0:
                     original_topic_score = score_item_topic_score
                     score_item_topic_score = score_item_topic_score * topic_priority
                     score_item_topic_expln = f'*{score_item_topic_expln} Priority {topic_priority}: {original_topic_score:.2f}=>{score_item_topic_score:.2f}.'
-
-            if self.backend_params.url_words_kf > 0:
-                for topic_index_by_url in topic_index_by_url_list:
-                    if  topic_index_by_url == score_item_topic_index:
-                        original_topic_score = score_item_topic_score
-                        score_item_topic_score = score_item_topic_score * self.backend_params.url_words_kf
-                        score_item_topic_expln = f'!{score_item_topic_expln}. Detected by URL: {original_topic_score:.2f}=>{score_item_topic_score:.2f}'
-                        break
 
             topics_score_list.append(
                 TopicScoreItem(
@@ -277,7 +286,7 @@ class BackEndCore():
 
         if self.backend_params.override_by_url_words and len(topic_index_by_url_list) > 0:
             topic_index_by_url = topic_index_by_url_list[0].topic_index
-            if primary_main_topic.topic_index != topic_index_by_url:
+            if primary_main_topic.topic_index != topic_index_by_url and primary_main_topic.topic_score < self.backend_params.override_by_url_words_less:
                 primary_main_topic = TopicScoreItem(
                     topic_index_by_url,
                     topic_dict[topic_index_by_url].name,
@@ -300,6 +309,7 @@ class BackEndCore():
             main_topics,
             full_translated_text,
             topics_score_ordered,
+            topics_by_url_info,
             False
         )
 

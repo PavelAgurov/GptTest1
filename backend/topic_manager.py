@@ -12,6 +12,13 @@ from backend.base_classes import TopicDefinition, TopicList
 
 
 @dataclass
+class TopicDetectedByURL:
+    """To store topic detected by URL"""
+    topic_index    : int
+    topic_priority : int
+    url_position   : int
+
+@dataclass
 class TopicPriority:
     """To store topic priority"""
     topic_index    : int
@@ -50,14 +57,26 @@ class TopicManager():
         """Return topic dict [topic_id, TopicDefinition]"""
         return self.topic_dict
     
-    def get_topics_by_url(self, url : str) -> list[TopicPriority]:
+    def get_topics_by_url(self, url : str) -> list[TopicDetectedByURL]:
         """Check if URL is relevant to some topic"""
-        detected_list = list[TopicPriority]()
+        detected_list = list[TopicDetectedByURL]()
         for url_word_item in self.url_words.items():
-            if url_word_item[0] in url:
-                detected_list.append(url_word_item[1])
+            position = url.find(url_word_item[0])
+            topic_index = url_word_item[1].topic_index
+            if position != -1:
+                found_topic = False
+                for t in detected_list:
+                    if t.topic_index == topic_index:
+                        found_topic = True
+                        if t.url_position < position:
+                            t.topic_priority = url_word_item[1].topic_priority
+                            t.url_position =position
+                        break                    
+                if not found_topic:
+                    detected_list.append(TopicDetectedByURL(topic_index, url_word_item[1].topic_priority, position))
+
         if detected_list:
-            detected_list = sorted(detected_list, key=lambda x: x.topic_priority, reverse=True)
+            detected_list = sorted(detected_list, key=lambda x: x.url_position, reverse=True)
         return detected_list
    
     def save_topic_descriptions(self, updated_list: list[TopicDefinition]):

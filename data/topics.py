@@ -10,7 +10,7 @@ TOPICS_LIST : list[TopicDefinition] = [
       1,
       "Tobacco Harm reduction",
       "Discusses the efforts of Philip Morris International (PMI) to develop and promote less harmful alternatives to traditional cigarettes. Highlights the company's commitment to finding solutions for smokers and countering misinformation.",
-      url_words=["harm-reduction"]
+      url_words=["harm-reduction", "prevent-you"]
    ),
    TopicDefinition(
       2,
@@ -28,7 +28,7 @@ TOPICS_LIST : list[TopicDefinition] = [
       4,
       "Leadership content",
       "Shares insights from leaders on the importance of agility, moral compass, and teamwork in driving change. Discusses the role of gender diversity and the need for leaders to challenge unconscious bias.",
-      priority= 2.2
+      priority= 0
    ),
    TopicDefinition(
       5,
@@ -40,7 +40,7 @@ TOPICS_LIST : list[TopicDefinition] = [
       6,
       "Our science",
       "Highlights the scientific research and innovation behind PMI's smoke-free products. Discusses the importance of open dialogue, collaboration, and resilience in achieving a smoke-free future.",
-      priority= 1.6,
+      priority= 0,
       url_words=["intervals", "science", "our-science"]
    ),
    TopicDefinition(
@@ -59,13 +59,13 @@ TOPICS_LIST : list[TopicDefinition] = [
       9,
       "Sustainability",
       "Discusses PMI's commitment to sustainability, including reducing waste, addressing social impacts, and protecting human rights. Highlights the company's strategies, initiatives, and partnerships aimed at achieving these goals.",
-      priority= 2,
+      priority= 2.5,
       url_words=['sustainability']
    ),
    TopicDefinition(
       10,
       "Regulation",
-      "Discusses the regulations governing smoke-free products and PMI's stance on these regulations. Highlights the need for sensible, risk-based regulation and advocacy for smoke-free products.",
+      "Regulations governing smoke-free products. Risk-based regulation and smoke-free promotion. Respect for the law. Work to prevent illegal trade. Comply with regulations. Extensive restrictions, including outright bans.",
       ["regulators", "regulation"],
       priority= 2.5
    ),

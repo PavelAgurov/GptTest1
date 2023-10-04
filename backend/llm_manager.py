@@ -171,8 +171,6 @@ class LLMManager():
 
         current_paragraph = self.clean_up_text(text)
 
-        #topics_for_prompt = "\n".join([f'{t.id}. {t.description}' for t in topic_def])
-
         topic_dict = {t.name.lower().strip() : t for t in topic_list}
 
         topics_for_prompt_list = []
@@ -247,3 +245,8 @@ class LLMManager():
         )
 
         return result
+
+
+    def detect_leaders(self, url : str, text : str):
+        """Detect leaders"""
+        return None

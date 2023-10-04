@@ -23,8 +23,9 @@ Translated article if language of provided article was not English.
 
 score_prompt_template = """\
 You are text classifier. There list of topics (delimited with XML tags) and text (delimited with XML tags).
-Your task is to read all text and sort the topics by the relevance of this text. 
-Also you should add a score for that relevance as a double-precision floating point number (0.00) and a brief explanation of the score.
+Your task is to read all text, calculate a score of relevance between this text and provided topics one by one and than sort the topics by the relevance.
+A score is a double-precision floating point number (0.00 - not relevant at all, 1.00 - fully relevant).
+Also you should add a brief explanation of the score.
 
 If the text does not mention anything related to the topic - score should be 0.
 

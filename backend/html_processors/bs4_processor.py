@@ -25,7 +25,7 @@ def get_plain_text_bs4(html : str, html_classes_to_parse : list[str]) -> str:
     print(f'html_classes_to_parse={html_classes_to_parse}')
 
     soup = BeautifulSoup(html, 'html.parser')
-    texts = soup.findAll(['p', 'div'])
+    texts = soup.findAll(['p', 'div', 'blockquote'])
     paragraph_list = []
     for t in texts:
         if not t:

@@ -11,7 +11,7 @@ import pandas as pd
 import streamlit as st
 
 import strings
-from utils_streamlit import streamlit_hack_remove_top_space
+from utils_streamlit import streamlit_hack_remove_top_space, hide_footer
 from backend.backend_core import BackEndCore, BackendParams, BackendCallbacks, ReadModeHTML
 from backend.base_classes import MainTopics, ScoreResultItem, TopicScoreItem
 from backend.bulk_output import BulkOutputParams
@@ -59,6 +59,7 @@ EXCLUDED_URLS = [
 st.set_page_config(page_title="PMI Topics Demo", layout="wide")
 st.title('PMI Topics Demo')
 streamlit_hack_remove_top_space()
+hide_footer()
 
 tab_process, tab_settings, tab_topic_editor, tab_debug, tb_tuning = st.tabs(["Process URL(s)", "Settings", "Topics", "Debug", "Tuning"])
 
@@ -116,8 +117,9 @@ with tab_process:
         summary_container  = st.expander(label="Summary").empty()
         lang_container     = st.empty()
         extracted_text_container = st.expander(label="Extracted (and translated) Text").empty()
-    main_topics_container = st.container().empty()
-    output_container = st.container().empty()
+    main_topics_container = st.empty()
+    output_container = st.empty()
+    output_container_info = st.empty()
     if mode_selector != MODE_ONE:
         export_container = st.empty()
     debug_container = st.container()
@@ -126,10 +128,18 @@ with tab_process:
 with tab_settings:
     open_api_key = st.text_input("OpenAPI Key: ", "", key="open_api_key")
     skip_translation = st.checkbox(label= "Skip translation", value=True)
-    override_by_url_words = st.checkbox(label= "Override primary topic by url words detection", value=False)
-    url_words_kf = st.number_input(label="Kf for Url words (0 - off)", min_value=0.0, max_value=5.0, value=0.0)
-    skip_summary     = st.checkbox(label= "Do not use summary", value=False)
-    skip_topic_priority = st.checkbox(label= "Do not use topic priority", value=False)
+    col_ouw_1, col_ouw_2, _ = st.columns([30, 40, 40])
+    override_by_url_words = col_ouw_1.checkbox(label= "Override primary topic by url words detection", value=False)
+    override_by_url_words_less = col_ouw_2.number_input(
+        label="When score of primary less than (0 - off, 1 - always)", 
+        min_value=0.0, 
+        max_value=5.0, 
+        value=0.5,
+        disabled= not override_by_url_words
+    )
+    url_words_add = st.number_input(label="Add to the Url words", min_value=0.0, max_value=5.0, value=0.5)
+    skip_summary  = st.checkbox(label= "Do not use summary", value=False)
+    use_topic_priority = st.checkbox(label= "Use topic priority", value=False)
     footer_texts = st.text_area("Footers", value= '\n'.join(FOOTER_LIST))
 
 with tab_topic_editor:
@@ -284,6 +294,11 @@ def show_bulk_data_from_sesstion():
             on_click= skip_callback
         )
 
+    if add_gold_data_checkbox:
+        primary_correct = data['Primary correct'].sum()
+        secondary_correct= data['Secondary correct'].sum()
+        output_container_info.info(f'Primary correct={primary_correct}. Secondary correct={secondary_correct}')
+
 
 @st.cache_data
 def convert_df_to_csv(df_csv : pd.DataFrame):
@@ -300,9 +315,10 @@ backend_params = BackendParams(
     site_map_only,
     skip_translation,
     override_by_url_words,
-    url_words_kf,
+    override_by_url_words_less,
+    url_words_add,
     skip_summary,
-    skip_topic_priority,
+    use_topic_priority,
     LLM_OPENAI_API_KEY,
     BackendCallbacks(
         report_status,
@@ -400,6 +416,7 @@ start_time = time.localtime()
 start_time_str = time.strftime("%H:%M:%S", start_time)
 start_time_container.markdown(f'Start {start_time_str}')
 
+# ---- RUN!
 bulk_result : list[ScoreResultItem] = back_end.run(input_url_list, read_mode, only_read_html)
 
 end_time = time.localtime()

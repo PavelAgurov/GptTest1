@@ -33,12 +33,12 @@ class BulkOutput():
         """Return primary golden data"""
         # no golden data at all
         if not gold_data_dict:
-            return [None, None, None, None, None]
+            return [None, None, None, None, 1]
         
         # no golden data for this URL
         u_url = url.lower().strip()
         if u_url not in gold_data_dict:
-            return [None, None, None, None, None]
+            return [None, None, None, None, 1]
         
         golden_data = gold_data_dict[u_url]
 
@@ -53,7 +53,7 @@ class BulkOutput():
             second_golden_topic_name = golden_data.primary_topic
 
         if not first_golden_topic_name:
-            return [None, None, None, None, None]
+            return [None, None, None, None, 0]
         
         if str2lower(first_golden_topic_name) not in topic_dict:
             return [first_golden_topic_name, "ERROR GOLDEN DATA", None, None, None]
@@ -97,6 +97,7 @@ class BulkOutput():
         topic_dict = {t.name.lower().strip() : t for t in topic_list}
 
         bulk_columns = ['URL', 'Input length', 'Extracted length', 'Lang', 'Translated length']
+        bulk_columns.extend(['URL detector'])
         bulk_columns.extend(['Primary', 'Primary score'])
         if params.inc_golden_data:
             bulk_columns.extend([
@@ -138,6 +139,7 @@ class BulkOutput():
 
             bulk_row = []
             bulk_row.extend([row.current_url, row.input_text_len, row.extracted_text_len, row.translated_lang, row.transpated_text_len])
+            bulk_row.extend([row.topics_by_url_info])
 
             if row.main_topics and row.main_topics.primary:
                 bulk_row.extend([row.main_topics.primary.topic, row.main_topics.primary.topic_score]) # primary topic

@@ -54,6 +54,7 @@ class ScoreResultItem:
     main_topics          : MainTopics
     full_translated_text : str
     ordered_result_score : list
+    topics_by_url_info   : str
     error                : str
 
     def get_main_topic_primary_item(self) -> TopicScoreItem:
@@ -83,15 +84,15 @@ class ScoreResultItem:
     @classmethod
     def Empty(cls, url : str, input_text_len : int = 0):
         """Empry result"""
-        return ScoreResultItem(url, input_text_len, 0, '', 0, None, '', None, None)
+        return ScoreResultItem(url, input_text_len, 0, '', 0, None, '', None, None, None)
     
     @classmethod
     def PageNotFound(cls, url : str):
         """Page not found object"""
-        return ScoreResultItem(url, 0, 0, '', 0, None, '', None, "Page not found")
+        return ScoreResultItem(url, 0, 0, '', 0, None, '', None, None, "Page not found")
 
     @classmethod
     def Error(cls, url : str, error : str):
         """Error"""
-        return ScoreResultItem(url, 0, 0, '', 0, None, 'ERROR', None, error)
+        return ScoreResultItem(url, 0, 0, '', 0, None, 'ERROR', None, None, error)
 
