@@ -97,7 +97,7 @@ class BulkOutput():
         topic_dict = {t.name.lower().strip() : t for t in topic_list}
 
         bulk_columns = ['URL', 'Input length', 'Extracted length', 'Lang', 'Translated length']
-        bulk_columns.extend(['URL detector'])
+        bulk_columns.extend(['URL detector', 'Leaders', 'Senior leaders count'])
         bulk_columns.extend(['Primary', 'Primary score'])
         if params.inc_golden_data:
             bulk_columns.extend([
@@ -139,7 +139,7 @@ class BulkOutput():
 
             bulk_row = []
             bulk_row.extend([row.current_url, row.input_text_len, row.extracted_text_len, row.translated_lang, row.transpated_text_len])
-            bulk_row.extend([row.topics_by_url_info])
+            bulk_row.extend([row.topics_by_url_info, row.leaders_list_str, row.senior_leaders_count])
 
             if row.main_topics and row.main_topics.primary:
                 bulk_row.extend([row.main_topics.primary.topic, row.main_topics.primary.topic_score]) # primary topic

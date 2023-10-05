@@ -7,7 +7,7 @@ import time
 from dataclasses import dataclass
 import tiktoken
 import traceback
-from langchain import PromptTemplate
+from langchain.prompts.prompt import PromptTemplate
 from langchain.chains import LLMChain
 from langchain.callbacks import get_openai_callback
 from langchain.chat_models import ChatOpenAI

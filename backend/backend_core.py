@@ -11,8 +11,7 @@ import urllib
 from urllib.parse import urlparse
 import pandas as pd
 
-from backend.llm_manager import LLMManager, LlmCallbacks, ScoreTopicsResult, TranslationResult
-from backend.text_processing import text_extractor
+from backend.llm_manager import LLMManager, LlmCallbacks, ScoreTopicsResult, TranslationResult, LeadersListResult
 from backend.topic_manager import TopicManager, TopicDetectedByURL
 from backend.base_classes import TopicScoreItem, MainTopics, ScoreResultItem, TopicDefinition
 from backend.bulk_output import BulkOutput, BulkOutputParams
@@ -52,9 +51,9 @@ class BackendParams:
     url_words_add       : float
     skip_summary       : bool
     use_topic_priority : bool
+    use_leaders        : bool
     open_api_key       : str
     callbacks          : BackendCallbacks
-    footer_texts       : list[str]
 
 @dataclass
 class TranslatedResult:
@@ -82,6 +81,8 @@ class BackEndCore():
     llm_manager    : LLMManager
     topic_manager  : TopicManager
     tuning_manager : TuningManager
+
+    PMI_COMPANY_NAMES = ['pmi', 'philip morris international', 'philip morris international (pmi)']
 
     def __init__(self, backend_params : BackendParams):
         self.backend_params = backend_params
@@ -181,7 +182,6 @@ class BackEndCore():
         if not self.backend_params.skip_summary:
             self.report_substatus('Build summary...')
             summary = self.llm_manager.refine_text(input_text)
-            summary = text_extractor(self.backend_params.footer_texts, summary)
             summary = summary.strip()
             self.report_substatus('Summary is ready')
             self.backend_params.callbacks.show_summary_callback(summary)
@@ -210,12 +210,14 @@ class BackEndCore():
         self.backend_params.callbacks.used_tokens_callback(score_topics_result.used_tokens)
         self.report_substatus('')
 
+        senior_pmi_leaders = []
+        leaders_list_str = None
         self.report_substatus('Detect Leaders...')
-        leaders_result = self.llm_manager.detect_leaders(
-                                                    url,
-                                                    full_translated_text
-                                                )
-        print(leaders_result)
+        leaders_list : LeadersListResult = self.llm_manager.detect_leaders(url, input_text)
+        print(leaders_list)
+        if leaders_list and leaders_list.leaders:
+            leaders_list_str = '|'.join([f'{leader.name}, {leader.company}, {leader.title}, {leader.senior}' for leader in leaders_list.leaders if leader.name])
+            senior_pmi_leaders = [leader for leader in leaders_list.leaders if leader.senior and leader.company and leader.company.lower() in self.PMI_COMPANY_NAMES]
         self.report_substatus('')
 
         if score_topics_result.error:
@@ -286,13 +288,21 @@ class BackEndCore():
 
         if self.backend_params.override_by_url_words and len(topic_index_by_url_list) > 0:
             topic_index_by_url = topic_index_by_url_list[0].topic_index
-            if primary_main_topic.topic_index != topic_index_by_url and primary_main_topic.topic_score < self.backend_params.override_by_url_words_less:
+            if primary_main_topic.topic_index != topic_index_by_url and primary_main_topic.topic_score <= self.backend_params.override_by_url_words_less:
                 primary_main_topic = TopicScoreItem(
                     topic_index_by_url,
                     topic_dict[topic_index_by_url].name,
                     1,
                     'Detected by URL'
                 )
+
+        if self.backend_params.use_leaders and len(senior_pmi_leaders) >= 2:
+            primary_main_topic = TopicScoreItem(
+                -1,
+                'Leadership content',
+                1,
+                'Detected by Leader extractor'
+            )
 
         main_topics = MainTopics(primary_main_topic, secondary_main_topic)
         self.backend_params.callbacks.show_main_topics_callback(main_topics)
@@ -310,6 +320,8 @@ class BackEndCore():
             full_translated_text,
             topics_score_ordered,
             topics_by_url_info,
+            leaders_list_str,
+            len(senior_pmi_leaders),
             False
         )
 

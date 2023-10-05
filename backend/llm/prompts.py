@@ -39,3 +39,24 @@ Provide the output in JSON format.
 {text}
 </text>
 """
+
+leaders_prompt_template = """\
+You are press secretary.
+Your task is to extract all managers (president, head, chief, CEO, VP, SVP etc.) and their titles from provided text (delimited with XML tags).
+Do not make up answers, use only provided text!
+
+Provide the output in JSON:
+
+"managers":{{
+    {{
+        "name" : "name of top manager",
+        "company" : "company name where he/she is working or worked",
+        "title" : "title of top manager",
+        "senior": True, if manager is a senior staff
+    }}
+}}
+
+<text>
+{text}
+</text>
+"""

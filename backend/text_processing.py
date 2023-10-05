@@ -4,17 +4,6 @@
 
 import tiktoken
 
-def text_extractor(footer_texts : list[str], text : str) -> str:
-    """Remove footer from text"""
-    for footer_item in footer_texts:
-        footer_item = footer_item.strip()
-        if len(footer_item) == 0:
-            continue
-        footer_index = text.find(footer_item)
-        if footer_index != -1:
-            text = text[:footer_index]
-    return text
-
 def text_to_paragraphs(extracted_text : str,
                         token_estimator : tiktoken.core.Encoding,
                         first_paragraph_max_token : int,

@@ -140,7 +140,7 @@ with tab_settings:
     url_words_add = st.number_input(label="Add to the Url words", min_value=0.0, max_value=5.0, value=0.5)
     skip_summary  = st.checkbox(label= "Do not use summary", value=False)
     use_topic_priority = st.checkbox(label= "Use topic priority", value=False)
-    footer_texts = st.text_area("Footers", value= '\n'.join(FOOTER_LIST))
+    use_leaders = st.checkbox(label= "Use leaders extraction", value=False)
 
 with tab_topic_editor:
     topic_editor_container = st.container()
@@ -319,6 +319,7 @@ backend_params = BackendParams(
     url_words_add,
     skip_summary,
     use_topic_priority,
+    use_leaders,
     LLM_OPENAI_API_KEY,
     BackendCallbacks(
         report_status,
@@ -332,8 +333,7 @@ backend_params = BackendParams(
         show_debug_json_callback,
         show_main_topics_callback,
         show_topics_score_callback
-    ),
-    footer_texts.split('\n')
+    )
 )
 
 back_end = BackEndCore(backend_params)

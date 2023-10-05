@@ -16,6 +16,7 @@ def need_to_parse(t : Tag, html_classes_to_parse : list[str]) -> bool:
     classes = t.attrs['class']
     for html_class in html_classes_to_parse:
         if html_class in classes: # yes, this class shold be parsed
+            print(classes)
             return True
     return False
 

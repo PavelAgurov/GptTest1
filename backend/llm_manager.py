@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import traceback
 
 import langchain
-from langchain import PromptTemplate
+from langchain.prompts.prompt import PromptTemplate
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.chat_models import ChatOpenAI
 from langchain.chains import LLMChain
@@ -15,11 +15,26 @@ from langchain.cache import SQLiteCache
 from langchain.callbacks import get_openai_callback
 import tiktoken
 
-import backend.llm.prompts as prompts
+from backend.llm import prompts
 from backend.llm.refine import RefineChain
-from backend.text_processing import text_to_paragraphs, limit_text_tokens
+from backend.text_processing import limit_text_tokens
 from backend.base_classes import TopicDefinition
 from utils import get_llm_json, parse_llm_xml, str2lower
+
+@dataclass
+class LeaderRecord:
+    """Leader"""
+    name    : str
+    company : str
+    title   : str
+    senior  : bool
+
+@dataclass
+class LeadersListResult:
+    """List of leaders"""
+    leaders     : list[LeaderRecord]
+    used_tokens : int
+    error       : str
 
 @dataclass
 class LlmCallbacks:
@@ -51,6 +66,7 @@ class LLMManager():
     translation_chain : LLMChain
     score_chain : LLMChain
     llm_summary : ChatOpenAI
+    leaders_chain : LLMChain
     text_splitter : CharacterTextSplitter
     token_estimator : tiktoken.core.Encoding
 
@@ -62,10 +78,14 @@ class LLMManager():
     MAX_MODEL_TOKENS = 4097 # max token for gpt 3.5
     MAX_TOKENS_SCORE = 1600
     MAX_TOKENS_SUMMARY = 2000
+    MAX_TOKENS_LEADERS = 1000
     FIRST_PARAGRAPH_MAX_TOKEN = 200 # small text to check language
     MAX_TOKENS_TRANSLATION    = 1000
 
     _TIKTOKEN_CACHE_DIR = ".tiktoken-cache"
+
+    EXCLUDED_LEADER_NAMES = ['unknown', 'name of top manager', 'pmi']
+    EXCLUDED_LEADER_TITLES = ['company']
 
     def __init__(self, open_api_key : str, callbacks: LlmCallbacks):
         self.callbacks = callbacks
@@ -101,6 +121,15 @@ class LLMManager():
             max_tokens     = self.MAX_TOKENS_SUMMARY,
             temperature    = 0
         )
+
+        llm_leaders = ChatOpenAI(
+            model_name     = self.MODEL_NAME, 
+            openai_api_key = open_api_key, 
+            max_tokens     = self.MAX_TOKENS_LEADERS,
+            temperature    = 0
+        )
+        leaders_prompt = PromptTemplate.from_template(prompts.leaders_prompt_template)
+        self.leaders_chain  = LLMChain(llm=llm_leaders, prompt = leaders_prompt)
 
         self.text_splitter = CharacterTextSplitter.from_tiktoken_encoder(
             encoding_name= self.MODEL_NAME, 
@@ -138,9 +167,9 @@ class LLMManager():
         self.report_status('Refining is done')
         return summary
 
-    def split_text_to_paragraphs(self, text : str) -> list[str]:
-        """Split text by paragraphs"""
-        return text_to_paragraphs(text, self.token_estimator, self.FIRST_PARAGRAPH_MAX_TOKEN, self.MAX_TOKENS_TRANSLATION)
+    # def split_text_to_paragraphs(self, text : str) -> list[str]:
+    #     """Split text by paragraphs"""
+    #     return text_to_paragraphs(text, self.token_estimator, self.FIRST_PARAGRAPH_MAX_TOKEN, self.MAX_TOKENS_TRANSLATION)
 
     def translate_text(self, text : str) -> TranslationResult:
         """Translate text"""
@@ -200,8 +229,8 @@ class LLMManager():
                 cut_information = f'{cut_information}. CUT TEXT before score: {len(current_paragraph)} => {len(reduced_text)} ({reduced_text_tokens} tokens)'
                 print(cut_information)
 
-            prompt_full = self.score_chain.prompt.format(topics = topics_for_prompt, text = reduced_text)
-            print(prompt_full)
+            #prompt_full = self.score_chain.prompt.format(topics = topics_for_prompt, text = reduced_text)
+            #print(prompt_full)
 
             with get_openai_callback() as cb:
                 extracted_score = self.score_chain.run(topics = topics_for_prompt, text = reduced_text)
@@ -247,6 +276,39 @@ class LLMManager():
         return result
 
 
-    def detect_leaders(self, url : str, text : str):
+    def detect_leaders(self, url : str, text : str) -> LeadersListResult:
         """Detect leaders"""
-        return None
+        
+        # TODO - split into chunks
+        reduced_text = limit_text_tokens(text, self.token_estimator,  1500)
+
+        total_token_count = 0
+        try:
+            with get_openai_callback() as cb:
+                extracted_leaders = self.leaders_chain.run(text = reduced_text)
+            total_token_count = cb.total_tokens
+        except Exception as error: # pylint: disable=W0718
+            print(f'Error: {error}. URL: {url}.')
+            return LeadersListResult(None, total_token_count, error)
+
+        print(extracted_leaders)
+
+        result = list[LeaderRecord]()
+        try:
+            extracted_leaders_json = get_llm_json(extracted_leaders)
+
+            for t in extracted_leaders_json['managers']:
+                leader_name = t['name']
+                company     = t['company']
+                title       = t['title']
+                senior      = t['senior']
+                if title.lower() in self.EXCLUDED_LEADER_TITLES:
+                    continue
+                if leader_name.lower() in self.EXCLUDED_LEADER_NAMES:
+                    continue
+                result.append(LeaderRecord(leader_name, company, title, senior))
+        except Exception as error: # pylint: disable=W0718
+            print(f'Error: {error}. JSON: {extracted_leaders}. URL: {url}.')
+            return LeadersListResult(None, total_token_count, error)
+
+        return LeadersListResult(result, total_token_count, None)
