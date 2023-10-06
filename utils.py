@@ -8,10 +8,10 @@ import re
 import json
 import traceback
 
-def str2lower(text : str) -> str:
+def str2lower(text : str, none_value : str = None) -> str:
     """Lower case of text"""
     if not text:
-        return None
+        return none_value
     return text.lower().strip()
 
 def parse_llm_xml(text : str, variables : list[str]) -> dict[str, str]:

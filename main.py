@@ -139,8 +139,8 @@ with tab_settings:
     )
     url_words_add = st.number_input(label="Add to the Url words", min_value=0.0, max_value=5.0, value=0.5)
     skip_summary  = st.checkbox(label= "Do not use summary", value=False)
-    use_topic_priority = st.checkbox(label= "Use topic priority", value=False)
-    use_leaders = st.checkbox(label= "Use leaders extraction", value=False)
+    use_topic_priority = st.checkbox(label= "Use topic priority", value=True)
+    use_leaders = st.checkbox(label= "Use leaders extraction", value=True)
 
 with tab_topic_editor:
     topic_editor_container = st.container()
@@ -295,9 +295,10 @@ def show_bulk_data_from_sesstion():
         )
 
     if add_gold_data_checkbox:
-        primary_correct = data['Primary correct'].sum()
-        secondary_correct= data['Secondary correct'].sum()
-        output_container_info.info(f'Primary correct={primary_correct}. Secondary correct={secondary_correct}')
+        main_correct      = data['Main correct'].sum()
+        primary_correct   = data['Primary correct'].sum()
+        secondary_correct = data['Secondary correct'].sum()
+        output_container_info.info(f'Main correct={main_correct:.2f}, primary correct={primary_correct:.2f}, secondary correct={secondary_correct:.2f}')
 
 
 @st.cache_data

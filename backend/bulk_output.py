@@ -20,11 +20,9 @@ class BulkOutputParams:
 class BulkOutput():
     """Class to build output data"""
 
-    def calculate_gold_data(
+    def get_golden_data_array(
             self,
             url : str,
-            primary_topic     : str,
-            secondary_topic   : str,
             gold_data_dict    : dict[str, GoldenData],
             topic_dict        : dict[str, TopicDefinition],
             score_data        : dict[int, tuple[float, str]],
@@ -33,39 +31,29 @@ class BulkOutput():
         """Return primary golden data"""
         # no golden data at all
         if not gold_data_dict:
-            return [None, None, None, None, 1]
+            return [None, None, None, None]
         
         # no golden data for this URL
         u_url = url.lower().strip()
         if u_url not in gold_data_dict:
-            return [None, None, None, None, 1]
+            return [None, None, None, None]
         
         golden_data = gold_data_dict[u_url]
 
-        first_topic_name = None
         if is_primary:
-            first_topic_name    = primary_topic
-            first_golden_topic_name  = golden_data.primary_topic
-            second_golden_topic_name = golden_data.secondary_topic
+            first_golden_topic_name = golden_data.primary_topic
         else:
-            first_topic_name    = secondary_topic
-            first_golden_topic_name  = golden_data.secondary_topic
-            second_golden_topic_name = golden_data.primary_topic
+            first_golden_topic_name = golden_data.secondary_topic
 
         if not first_golden_topic_name:
-            return [None, None, None, None, 0]
+            return [None, None, None, None]
         
         if str2lower(first_golden_topic_name) not in topic_dict:
-            return [first_golden_topic_name, "ERROR GOLDEN DATA", None, None, None]
+            return [first_golden_topic_name, "ERROR GOLDEN DATA", None, None]
+        
         first_golden_topic = topic_dict[str2lower(first_golden_topic_name)]
         first_golden_topic_index = first_golden_topic.id
         first_golden_topic_priority = first_golden_topic.priority
-
-        topic_correct = 0.0
-        if str2lower(first_topic_name) == str2lower(first_golden_topic_name): # exact fit
-            topic_correct = 1.0
-        elif str2lower(first_topic_name) == str2lower(second_golden_topic_name): # expected, but as other main topic
-            topic_correct = 0.5
 
         first_golden_score = 0
         first_topic_expl   = None
@@ -76,7 +64,45 @@ class BulkOutput():
             else:
                 first_golden_score = "ERROR"
 
-        return [first_golden_topic_name, first_golden_score, first_topic_expl, first_golden_topic_priority, topic_correct]
+        return [first_golden_topic_name, first_golden_score, first_topic_expl, first_golden_topic_priority]
+
+    def get_main_score(
+            self,
+            url                  : str,
+            gold_data_dict       : dict[str, GoldenData],
+            main_topic_primary   : str,
+            main_topic_secondary : str
+    ) -> list[int]:
+        """Get main score"""
+        # no golden data at all
+        if not gold_data_dict:
+            return [1, 1, 1]
+        
+        # no golden data for this URL
+        u_url = url.lower().strip()
+        if u_url not in gold_data_dict:
+            return [1, 1, 1]
+        golden_data = gold_data_dict[u_url]
+
+        golden_array = set([str2lower(golden_data.primary_topic, ''), str2lower(golden_data.secondary_topic, '')])
+        main_array   = set([str2lower(main_topic_primary, '')       , str2lower(main_topic_secondary, '')       ])
+        
+        main_score = 0
+        intersection_len = len(golden_array.intersection(main_array))
+        if intersection_len == 2:
+            main_score = 1
+        elif intersection_len == 1:
+            main_score = 0.5
+
+        primary_score = 0
+        if str2lower(main_topic_primary) in golden_array:
+            primary_score = 1
+
+        secondary_score = 0
+        if str2lower(main_topic_secondary) in golden_array:
+            secondary_score = 1
+
+        return [main_score, primary_score, secondary_score]
 
     def create_data(
             self,
@@ -97,6 +123,9 @@ class BulkOutput():
         topic_dict = {t.name.lower().strip() : t for t in topic_list}
 
         bulk_columns = ['URL', 'Input length', 'Extracted length', 'Lang', 'Translated length']
+        if params.inc_golden_data:
+            bulk_columns.extend(['Main correct', 'Primary correct', 'Secondary correct'])
+
         bulk_columns.extend(['URL detector', 'Leaders', 'Senior leaders count'])
         bulk_columns.extend(['Primary', 'Primary score'])
         if params.inc_golden_data:
@@ -104,8 +133,7 @@ class BulkOutput():
                 'Golden Primary', 
                 'Golden primary score', 
                 'Golden primary explanation', 
-                'Golden primary priority', 
-                'Primary correct'
+                'Golden primary priority'
             ])
         if params.inc_explanation:
             bulk_columns.extend(['Primary explanation'])
@@ -115,8 +143,7 @@ class BulkOutput():
                 'Golden Secondary', 
                 'Golden secondary score', 
                 'Golden secondary explanation', 
-                'Golden secondary priority', 
-                'Secondary correct'
+                'Golden secondary priority'
             ])
         if params.inc_explanation:
             bulk_columns.extend(['Secondary explanation'])
@@ -139,6 +166,15 @@ class BulkOutput():
 
             bulk_row = []
             bulk_row.extend([row.current_url, row.input_text_len, row.extracted_text_len, row.translated_lang, row.transpated_text_len])
+
+            if params.inc_golden_data:
+                bulk_row.extend(self.get_main_score(
+                    row.current_url,
+                    golden_data_dict,
+                    row.get_main_topic_primary(),
+                    row.get_main_topic_secondary(),
+                ))
+
             bulk_row.extend([row.topics_by_url_info, row.leaders_list_str, row.senior_leaders_count])
 
             if row.main_topics and row.main_topics.primary:
@@ -149,10 +185,8 @@ class BulkOutput():
             score_data = row.ordered_result_score
 
             if params.inc_golden_data:
-                bulk_row.extend(self.calculate_gold_data(
+                bulk_row.extend(self.get_golden_data_array(
                     row.current_url,
-                    row.get_main_topic_primary(),
-                    row.get_main_topic_primary(),
                     golden_data_dict, 
                     topic_dict,
                     score_data,
@@ -171,10 +205,8 @@ class BulkOutput():
                 bulk_row.extend([None, None])
 
             if params.inc_golden_data:
-                bulk_row.extend(self.calculate_gold_data(
+                bulk_row.extend(self.get_golden_data_array(
                     row.current_url,
-                    row.get_main_topic_primary(),
-                    row.get_main_topic_primary(),
                     golden_data_dict,
                     topic_dict,
                     score_data,

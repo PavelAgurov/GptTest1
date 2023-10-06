@@ -47,7 +47,7 @@ TOPICS_LIST : list[TopicDefinition] = [
       7,
       "Smoke-free vision",
       "Discusses PMI's mission to provide less harmful alternatives to traditional cigarettes and create a smoke-free world. Highlights the company's initiatives, partnerships, and efforts to raise awareness about these alternatives.",
-      url_words=["smoke-free-products"]
+      url_words=["smoke-free-products", "smoke-free-future"]
    ),
    TopicDefinition(
       8,
