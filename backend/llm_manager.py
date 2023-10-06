@@ -28,6 +28,7 @@ class LeaderRecord:
     company : str
     title   : str
     senior  : bool
+    counter : int
 
 @dataclass
 class LeadersListResult:
@@ -302,11 +303,12 @@ class LLMManager():
                 company     = t['company']
                 title       = t['title']
                 senior      = t['senior']
+                counter     = t['counter']
                 if title.lower() in self.EXCLUDED_LEADER_TITLES:
                     continue
                 if leader_name.lower() in self.EXCLUDED_LEADER_NAMES:
                     continue
-                result.append(LeaderRecord(leader_name, company, title, senior))
+                result.append(LeaderRecord(leader_name, company, title, senior, counter))
         except Exception as error: # pylint: disable=W0718
             print(f'Error: {error}. JSON: {extracted_leaders}. URL: {url}.')
             return LeadersListResult(None, total_token_count, error)

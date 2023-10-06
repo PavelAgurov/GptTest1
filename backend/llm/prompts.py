@@ -52,7 +52,8 @@ Provide the output in JSON:
         "name" : "name of top manager",
         "company" : "company name where he/she is working or worked",
         "title" : "title of top manager",
-        "senior": True, if manager is a senior staff
+        "senior": True, if manager is a senior staff,
+        "counter" : how many times name appears in the text
     }}
 }}
 

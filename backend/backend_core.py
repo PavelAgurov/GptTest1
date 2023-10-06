@@ -218,7 +218,7 @@ class BackEndCore():
         leaders_list : LeadersListResult = self.llm_manager.detect_leaders(url, input_text)
         print(leaders_list)
         if leaders_list and leaders_list.leaders:
-            leaders_list_str = '|'.join([f'{leader.name}, {leader.company}, {leader.title}, {leader.senior}' for leader in leaders_list.leaders if leader.name])
+            leaders_list_str = '|'.join([f'{leader.name}, {leader.company}, {leader.title}, {leader.senior}x{leader.counter}' for leader in leaders_list.leaders if leader.name])
             senior_pmi_leaders = [leader for leader in leaders_list.leaders if leader.senior and leader.company and leader.company.lower() in self.PMI_COMPANY_NAMES]
         self.report_substatus('')
 
@@ -298,7 +298,9 @@ class BackEndCore():
                     'Detected by URL'
                 )
 
-        if self.backend_params.use_leaders and len(senior_pmi_leaders) >= 2:
+        senior_pmi_leaders_counter = len(senior_pmi_leaders)
+
+        if self.backend_params.use_leaders and senior_pmi_leaders_counter >= 2:
             primary_main_topic = TopicScoreItem(
                 -1,
                 'Leadership content',
@@ -336,7 +338,7 @@ class BackEndCore():
             topics_score_ordered,
             topics_by_url_info,
             leaders_list_str,
-            len(senior_pmi_leaders),
+            senior_pmi_leaders_counter,
             False
         )
 
