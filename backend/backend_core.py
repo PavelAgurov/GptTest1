@@ -3,6 +3,7 @@
 """
 # pylint: disable=C0301,C0103,C0303,C0304,C0305,C0411,E1121,R0902,R0903
 
+import re
 from enum import Enum
 from dataclasses import dataclass
 import collections
@@ -83,6 +84,7 @@ class BackEndCore():
     tuning_manager : TuningManager
 
     PMI_COMPANY_NAMES = ['pmi', 'philip morris international', 'philip morris international (pmi)']
+    AUTHOR_PATTERN    = 'Written by'
 
     def __init__(self, backend_params : BackendParams):
         self.backend_params = backend_params
@@ -303,6 +305,19 @@ class BackEndCore():
                 1,
                 'Detected by Leader extractor'
             )
+
+        if self.backend_params.use_leaders and len(senior_pmi_leaders) > 0:
+            for pmi_leader in senior_pmi_leaders:
+                author_pattern = rf'{self.AUTHOR_PATTERN}\s+{pmi_leader.name}'
+                res = re.findall(author_pattern, input_text)
+                if res:
+                    primary_main_topic = TopicScoreItem(
+                        -1,
+                        'Leadership content',
+                        1,
+                        'Detected by author'
+                    )
+
 
         main_topics = MainTopics(primary_main_topic, secondary_main_topic)
         self.backend_params.callbacks.show_main_topics_callback(main_topics)
