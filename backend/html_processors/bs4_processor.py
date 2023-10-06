@@ -13,11 +13,12 @@ def need_to_parse(t : Tag, html_classes_to_parse : list[str]) -> bool:
     if not t.attrs or 'class' not in t.attrs: # we have limitation, but no class attr
         return False
     
-    classes = t.attrs['class']
+    tag_classes = t.attrs['class']
     for html_class in html_classes_to_parse:
-        if html_class in classes: # yes, this class shold be parsed
-            print(classes)
-            return True
+        for tag_classe in tag_classes:
+            if html_class in tag_classe: # yes, this class shold be parsed
+                print(html_class)
+                return True
     return False
 
 def get_plain_text_bs4(html : str, html_classes_to_parse : list[str]) -> str:

@@ -27,7 +27,7 @@ TOPICS_LIST : list[TopicDefinition] = [
    TopicDefinition(
       4,
       "Leadership content",
-      "Shares insights from leaders on the importance of agility, moral compass, and teamwork in driving change. Discusses the role of gender diversity and the need for leaders to challenge unconscious bias.",
+      "Provides insights from company leaders, including articles written by them, interviews, quotes, while also discussing decision-making, team management, and inspiration.",
       priority= 0,
       url_words=['leaders-of-change']
    ),
