@@ -5,26 +5,41 @@
 
 from bs4 import BeautifulSoup, Tag
 
-def need_to_parse(t : Tag, html_classes_to_parse : list[str]) -> bool:
+def need_to_parse_whitelist(t : Tag, html_classes_whitelist : list[str]) -> bool:
     """True if tag should be parsed"""
-    if not html_classes_to_parse: # no limitation defined
+    if not html_classes_whitelist: # no limitation defined
         return True
     
     if not t.attrs or 'class' not in t.attrs: # we have limitation, but no class attr
         return False
     
     tag_classes = t.attrs['class']
-    for html_class in html_classes_to_parse:
+    for html_class in html_classes_whitelist:
         for tag_classe in tag_classes:
             if html_class in tag_classe: # yes, this class shold be parsed
-                print(html_class)
                 return True
     return False
 
-def get_plain_text_bs4(html : str, html_classes_to_parse : list[str]) -> str:
+def need_to_parse_blacklist(t : Tag, html_classes_blacklist : list[str]) -> bool:
+    """True if tag should be parsed"""
+    if not html_classes_blacklist: # no limitation defined
+        return True
+    
+    if not t.attrs or 'class' not in t.attrs: # we have limitation, but no class attr
+        return False
+    
+    tag_classes = t.attrs['class']
+    for html_class in html_classes_blacklist:
+        for tag_classe in tag_classes:
+            if html_class in tag_classe: # this class shold NOT be parsed
+                return False
+    return True
+
+def get_plain_text_bs4(html : str, html_classes_whitelist : list[str], html_classes_blacklist : list[str]) -> str:
     """Plain text based on BS4"""
 
-    print(f'html_classes_to_parse={html_classes_to_parse}')
+    print(f'html_classes_whitelist={html_classes_whitelist}')
+    print(f'html_classes_blacklist={html_classes_blacklist}')
 
     soup = BeautifulSoup(html, 'html.parser')
     texts = soup.findAll(['p', 'div', 'blockquote'])
@@ -34,13 +49,18 @@ def get_plain_text_bs4(html : str, html_classes_to_parse : list[str]) -> str:
             continue
             
         # limitation defined
-        if html_classes_to_parse: 
-            if need_to_parse(t, html_classes_to_parse):
+        if html_classes_whitelist: 
+            if need_to_parse_whitelist(t, html_classes_whitelist):
                 paragraph_list.append(t.get_text().strip())
             continue
 
+        # limitation defined
+        if html_classes_blacklist: 
+            if not need_to_parse_blacklist(t, html_classes_blacklist):
+                continue
+
         # no limitation - try to extract what possible
-        paragraph = t.get_text().strip()
+        paragraph = t.get_text(separator=" ", strip=True).strip()
         if len(paragraph) == 0:
             continue
         lines = paragraph.split('\n')

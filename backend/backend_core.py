@@ -19,7 +19,7 @@ from backend.bulk_output import BulkOutput, BulkOutputParams
 from backend.html_processors.bs4_processor import get_plain_text_bs4
 from backend.gold_data import get_gold_data
 from backend.tuning_manager import TuningManager
-from data.parser_html_classes import HTML_CLASSES
+from data.parser_html_classes import HTML_CLASSES_WHITELIST, HTML_CLASSES_BLACKLIST
 
 class ReadModeHTML(Enum):
     """Types of HTML reading"""
@@ -118,11 +118,12 @@ class BackEndCore():
         if loading_mode_bs in [ReadModeHTML.BS4.value, ReadModeHTML.MIXED.value]:
             domain = urlparse(url).netloc
 
-            html_classes_to_parse = HTML_CLASSES.get(domain, None)
+            html_classes_whitelist = HTML_CLASSES_WHITELIST.get(domain, None)
+            html_classes_blacklist = HTML_CLASSES_BLACKLIST.get(domain, None)
 
             with urllib.request.urlopen(url) as f:
                 html = f.read()
-            result2 = get_plain_text_bs4(html, html_classes_to_parse)
+            result2 = get_plain_text_bs4(html, html_classes_whitelist, html_classes_blacklist)
 
         if loading_mode_bs == ReadModeHTML.PARTITION.value:
             return result1
@@ -218,7 +219,7 @@ class BackEndCore():
         leaders_list : LeadersListResult = self.llm_manager.detect_leaders(url, input_text)
         print(leaders_list)
         if leaders_list and leaders_list.leaders:
-            leaders_list_str = '|'.join([f'{leader.name}, {leader.company}, {leader.title}, {leader.senior}x{leader.counter}' for leader in leaders_list.leaders if leader.name])
+            leaders_list_str = '|'.join([f'{leader.name}, {leader.company}, {leader.title}, {leader.senior}[{leader.counter}]' for leader in leaders_list.leaders if leader.name])
             senior_pmi_leaders = [leader for leader in leaders_list.leaders if leader.senior and leader.company and leader.company.lower() in self.PMI_COMPANY_NAMES]
         self.report_substatus('')
 
@@ -247,7 +248,7 @@ class BackEndCore():
             
             if self.backend_params.url_words_add > 0:
                 for topic_index_by_url in topic_index_by_url_list:
-                    if  topic_index_by_url.topic_index == score_item_topic_index:
+                    if  topic_index_by_url.topic_index == score_item_topic_index and score_item_topic_score > 0:
                         original_topic_score = score_item_topic_score
                         score_item_topic_score = score_item_topic_score + self.backend_params.url_words_add
                         score_item_topic_expln = f'!{score_item_topic_expln}. Detected by URL: {original_topic_score:.2f}=>{score_item_topic_score:.2f}'

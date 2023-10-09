@@ -137,7 +137,7 @@ with tab_settings:
         value=0.5,
         disabled= not override_by_url_words
     )
-    url_words_add = st.number_input(label="Add to the Url words", min_value=0.0, max_value=5.0, value=0.5)
+    url_words_add = st.number_input(label="Add to the Url words", min_value=0.0, max_value=5.0, value=0.2)
     skip_summary  = st.checkbox(label= "Do not use summary", value=False)
     use_topic_priority = st.checkbox(label= "Use topic priority", value=True)
     use_leaders = st.checkbox(label= "Use leaders extraction", value=True)

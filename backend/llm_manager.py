@@ -304,9 +304,11 @@ class LLMManager():
                 title       = t['title']
                 senior      = t['senior']
                 counter     = t['counter']
-                if title.lower() in self.EXCLUDED_LEADER_TITLES:
+                if not title or title.lower() in self.EXCLUDED_LEADER_TITLES:
                     continue
-                if leader_name.lower() in self.EXCLUDED_LEADER_NAMES:
+                if not leader_name or leader_name.lower() in self.EXCLUDED_LEADER_NAMES:
+                    continue
+                if leader_name.lower() == title.lower(): # we need real name or real title
                     continue
                 result.append(LeaderRecord(leader_name, company, title, senior, counter))
         except Exception as error: # pylint: disable=W0718
