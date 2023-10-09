@@ -13,3 +13,4 @@ result.xlsx
 /data/__pycache__
 /utils/__pycache__
 /.logs
+/url_output

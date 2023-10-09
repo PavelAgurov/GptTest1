@@ -1,6 +1,6 @@
 """LLM Manager"""
 
-# pylint: disable=C0301,C0103,C0303,C0304,C0305,C0411,E1121,W1203
+# pylint: disable=C0301,C0103,C0303,C0304,C0305,C0411,E1121,W1203,R0914
 
 import os
 from dataclasses import dataclass

@@ -1,14 +1,19 @@
 """
     Console app
 """
-# pylint: disable=C0301,C0103,C0303,C0304,C0305,C0411,E1121,W1203
+# pylint: disable=C0301,C0103,C0303,C0304,C0305,C0411,E1121,W1203,R0914
 
 import os
+import sys
 import logging
+import argparse
 
 from backend.backend_core import BackEndCore, BackendParams, BackendCallbacks, ReadModeHTML
 from backend.base_classes import ScoreResultItem, MainTopics, TopicScoreItem
 from utils.app_logger import init_root_logger
+from backend.bulk_output import BulkOutputParams
+
+OUTPUT_EXTENSION = '.xlsx'
 
 total_used_tokens = 0
 logger : logging.Logger
@@ -60,13 +65,21 @@ def show_topics_score_callback(result_list : list[TopicScoreItem]): # pylint: di
     """Show topic score"""
     pass  # pylint: disable=W0107
 
-def run():
+def run(input_file : str, output_folder : str):
     """Main run cycle"""
 
-    LLM_OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
-    if not LLM_OPENAI_API_KEY:
-        logger.error('GPT KEY not found.')
+    logger.info(f'Read URLs from file {input_file}')
+    with open(input_file, "rt", encoding="utf-8") as f:
+        input_url_list = f.readlines()
+
+    if input_url_list:
+        input_url_list = [u.strip() for u in input_url_list if not u.startswith('#')]
+
+    if len(input_url_list) == 0:
+        logger.error(f'Input file {input_file} has no URLs.')
         return
+
+    logger.debug(f'Read {len(input_url_list)} URLs from file {input_file}')
 
     site_map_only = False
     skip_translation = True
@@ -105,8 +118,6 @@ def run():
     logger.debug('Create back-end instance...')
     back_end = BackEndCore(backend_params)
 
-    input_url_list : list[str] = ['https://www.pmi.com/faq-section/smoking-and-cigarettes']
-
     read_mode = ReadModeHTML.BS4.value
     only_read_html = False
 
@@ -117,9 +128,90 @@ def run():
     logger.debug(bulk_result)
     logger.info(f'total_used_tokens={total_used_tokens}')
 
+    bulk_output_params = BulkOutputParams(
+        True,
+        True,
+        False,
+        False
+    )
+
+    df_bulk_result = back_end.build_ouput_data(bulk_result, bulk_output_params)
+    if df_bulk_result.error:
+        logger.error(df_bulk_result.error)
+        sys.exit()
+
+    if df_bulk_result.data is None:
+        logger.error(f'Result data for package {input_file} is empty')
+        sys.exit()
+
+    output_file = f'{input_file}{OUTPUT_EXTENSION}'
+    if output_folder:
+        output_file = os.path.join(output_folder, os.path.basename(output_file))
+
+    if not output_file.endswith(OUTPUT_EXTENSION):
+        output_file = f'{output_file}{OUTPUT_EXTENSION}'
+
+    try:
+        logger.info(f'Saving output {output_file}')
+        df_bulk_result.data.to_excel(output_file)
+        logger.debug(f'Output {output_file} saved')
+    except Exception as saving_error: # pylint: disable=W0718
+        logger.error(saving_error)
+
 if __name__ == '__main__':
     total_used_tokens = 0
     logger = init_root_logger()
 
-    logger.info('Console app run...')
-    run()
+    # Initialize parser
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-i", "--Input", help = "Input file name with URLs (txt)", required=False)
+    parser.add_argument("-p", "--Package", help = "Package file name (txt)", required=False)
+    parser.add_argument("-o", "--Output", help = "Output folder name", required=False)
+    args = parser.parse_args()
+
+    if not args.Input and not args.Package:
+        parser.error('--Input or --Package argument is required')
+    if args.Input and args.Package:
+        parser.error('Only one --Input or --Package argument is allowed')
+
+    input_file_list = []
+    if args.Input:
+        input_file_list = [args.Input]
+        logger.info(f'Input file: {args.Input}.')
+
+    if args.Package:
+        logger.info(f'Read package list from file {args.Package}')
+        with open(args.Package, "rt", encoding="utf-8") as f:
+            input_file_list = f.readlines()
+        logger.info(f'Read {len(input_file_list)} input files from {args.Package}')
+
+    if input_file_list:
+        input_file_list = [f.strip() for f in input_file_list if len(f.strip()) > 0]
+
+    if not input_file_list:
+        logger.error('No input files provided')
+        sys.exit()
+
+    output_folder = args.Output
+    if output_folder:
+        os.makedirs(output_folder, exist_ok= True)
+    logger.info(f'Output folder: {args.Output}')
+
+    LLM_OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
+    if not LLM_OPENAI_API_KEY:
+        logger.error('GPT KEY not found.')
+        sys.exit()
+
+    logger.info('Start processing...')
+    for index, input_file in enumerate(input_file_list):
+        logger.info(f'Proces {input_file} ({index+1}/{len(input_file_list)})')
+        try:
+
+            # try in the same folder as package file
+            if not os.path.isfile(input_file) and args.Package:
+                if not os.path.dirname(input_file):
+                    input_file = os.path.join(os.path.dirname(args.Package), input_file)
+
+            run(input_file, output_folder)
+        except Exception as run_error: # pylint: disable=W0718
+            logger.error(run_error)
