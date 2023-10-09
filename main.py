@@ -2,21 +2,23 @@
     Main PMI
 """
 
-# pylint: disable=C0301,C0103,C0303,C0304,C0305,C0411,E1121
+# pylint: disable=C0301,C0103,C0303,C0304,C0305,C0411,E1121,W1203
 
 import os
 import time
 import pandas as pd
+import logging
 
 import streamlit as st
 
 import strings
-from utils_streamlit import streamlit_hack_remove_top_space, hide_footer
+from utils.utils_streamlit import streamlit_hack_remove_top_space, hide_footer
 from backend.backend_core import BackEndCore, BackendParams, BackendCallbacks, ReadModeHTML
 from backend.base_classes import MainTopics, ScoreResultItem, TopicScoreItem
 from backend.bulk_output import BulkOutputParams
 from backend.topic_manager import TopicManager, TopicDefinition
 from sitemap_utils import sitemap_load
+from utils.app_logger import init_root_logger
 
 # https://discuss.streamlit.io/t/watching-custom-folders/1507/4
 os.environ['PYTHONPATH'] = ';'.join([r"backend", r"backend\\llm"])
@@ -32,6 +34,7 @@ SESSION_TOKEN_COUNT   = 'token_count'
 SESSION_TUNING_PROMPT_STR = 'tuning_prompt_str'
 SESSION_TUNING_PROMPT_TOKENS = 'tuning_prompt_tokens'
 SESSION_BULK_RESULT   = 'bulk_result'
+SESSION_LOGGER   = 'logger'
 
 if SESSION_TUNING_PROMPT_STR not in st.session_state:
     st.session_state[SESSION_TUNING_PROMPT_STR] = ""
@@ -39,6 +42,16 @@ if SESSION_BULK_RESULT not in st.session_state:
     st.session_state[SESSION_BULK_RESULT] = None
 if SESSION_TUNING_PROMPT_TOKENS not in st.session_state:
     st.session_state[SESSION_TUNING_PROMPT_TOKENS] = None
+if SESSION_LOGGER not in st.session_state:
+    st.session_state[SESSION_LOGGER] = None
+
+# ------------------------------- Logger init
+
+logger : logging.Logger = st.session_state[SESSION_LOGGER]
+if not logger:
+    print('INIT LOGGER')
+    logger = init_root_logger()
+    st.session_state[SESSION_LOGGER] = logger
 
 # ------------------------------- UI
 

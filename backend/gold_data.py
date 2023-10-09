@@ -1,11 +1,12 @@
 """
     Golden data methods
 """
-# pylint: disable=C0301,C0103,C0303,C0304,C0305,C0411,E1121,R0903
+# pylint: disable=C0301,C0103,C0303,C0304,C0305,C0411,E1121,R0903,W1203
 
 import os
 from dataclasses import dataclass
 import pandas as pd
+import logging
 
 @dataclass
 class GoldenDataItem:
@@ -23,6 +24,8 @@ class GoldenData:
 
 GOLDEN_DATA_FILE = r'golden-data\\golden_data.xlsx'
 
+logger : logging.Logger = logging.getLogger()
+
 def get_gold_data() -> GoldenData:
     """Load golden data"""
     
@@ -33,11 +36,11 @@ def get_gold_data() -> GoldenData:
         gold_data_excel = pd.read_excel(GOLDEN_DATA_FILE)
         gold_data_excel = gold_data_excel.fillna('')  
     except Exception as error: # pylint: disable=W0718
-        print(error)
+        logger.error(error)
         return GoldenData(None, error)
 
     if gold_data_excel.shape[1] < 3:
-        print('Golden data must have 3 columns: URL, primary topic, secondary topic')
+        logger.error('Golden data must have 3 columns: URL, primary topic, secondary topic')
         return None
 
     def strip_str(s):

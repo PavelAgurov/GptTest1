@@ -9,3 +9,4 @@ pyasn1
 unstructured
 beautifulsoup4
 openpyxl
+termcolor

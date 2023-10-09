@@ -1,9 +1,12 @@
 """
     Process HTML with BS4
 """
-# pylint: disable=C0301,C0103,C0303,C0304,C0305,C0411,E1121,R0902,R0903
+# pylint: disable=C0301,C0103,C0303,C0304,C0305,C0411,E1121,R0902,R0903,W1203
 
 from bs4 import BeautifulSoup, Tag
+import logging
+
+logger : logging.Logger = logging.getLogger()
 
 def need_to_parse_whitelist(t : Tag, html_classes_whitelist : list[str]) -> bool:
     """True if tag should be parsed"""
@@ -38,8 +41,8 @@ def need_to_parse_blacklist(t : Tag, html_classes_blacklist : list[str]) -> bool
 def get_plain_text_bs4(html : str, html_classes_whitelist : list[str], html_classes_blacklist : list[str]) -> str:
     """Plain text based on BS4"""
 
-    print(f'html_classes_whitelist={html_classes_whitelist}')
-    print(f'html_classes_blacklist={html_classes_blacklist}')
+    logger.debug(f'html_classes_whitelist={html_classes_whitelist}')
+    logger.debug(f'html_classes_blacklist={html_classes_blacklist}')
 
     soup = BeautifulSoup(html, 'html.parser')
     texts = soup.findAll(['p', 'div', 'blockquote'])

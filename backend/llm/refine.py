@@ -1,18 +1,21 @@
 """
     Refine summary
 """
-# pylint: disable=C0301,C0103,C0303,C0304,C0305,C0411,E1121,R0903
+# pylint: disable=C0301,C0103,C0303,C0304,C0305,C0411,E1121,R0903,W1203
 
 import time
 from dataclasses import dataclass
 import tiktoken
 import traceback
+import logging
+
 from langchain.prompts.prompt import PromptTemplate
 from langchain.chains import LLMChain
 from langchain.callbacks import get_openai_callback
 from langchain.chat_models import ChatOpenAI
+from utils.utils import parse_llm_xml
 
-from utils import parse_llm_xml
+logger : logging.Logger = logging.getLogger()
 
 @dataclass
 class RefineResult:
@@ -145,13 +148,13 @@ class RefineChain():
                     )
                     status = f'--- Process doc init {current_index}:{new_index} / {len(sentence_list)}'
                     steps.append(status)
-                    print(status)
+                    logger.info(status)
 
                     current_doc_list = sentence_list[current_index:new_index]
                     current_doc = ''.join(current_doc_list)
                     current_doc_len = self.len_function(current_doc)
 
-                    print(f'max_tokens={max_tokens}, prompt_len={prompt_len}, max_token_in_text={max_token_in_text}, current_doc_len={current_doc_len}')
+                    logger.debug(f'max_tokens={max_tokens}, prompt_len={prompt_len}, max_token_in_text={max_token_in_text}, current_doc_len={current_doc_len}')
                     refine_initial_result = self.execute_initial_refine(current_doc)
                     tokens_used += refine_initial_result.tokens_used
                     steps.extend(refine_initial_result.steps)
@@ -180,7 +183,7 @@ class RefineChain():
                 )
                 status = f'--- Process doc refine {current_index}:{new_index} / {len(sentence_list)}'
                 steps.append(status)
-                print(status)
+                logger.info(status)
 
                 current_doc = ''.join(sentence_list[current_index:new_index])
 
@@ -202,7 +205,7 @@ class RefineChain():
             return RefineResult(summary, tokens_used, None, steps)
         except Exception as error: # pylint: disable=W0718
             steps.append(error)
-            print(f'Error: {error}. Track: {traceback.format_exc()}')
+            logger.error(f'Error: {error}. Track: {traceback.format_exc()}')
             return RefineResult(summary, tokens_used, error, steps)
 
     def execute_initial_refine(self, document : str) -> RefineInitialResult:
@@ -219,10 +222,10 @@ class RefineChain():
                 refine_initial_result = self.refine_initial_chain.run(text = document)
             tokens_used = cb.total_tokens
             steps.append(refine_initial_result)
-            print(refine_initial_result)
+            logger.debug(refine_initial_result)
         except Exception as error: # pylint: disable=W0718
             steps.append(error)
-            print(error)
+            logger.error(error)
 
         if refine_initial_result:
             summary_xml = parse_llm_xml(refine_initial_result, ["summary"])
@@ -246,7 +249,7 @@ class RefineChain():
                 refine_step_result = self.refine_combine_chain.run(existing_summary = existing_summary, more_context = more_context)
             tokens_used = cb.total_tokens
             steps.append(refine_step_result)
-            print(refine_step_result)
+            logger.debug(refine_step_result)
         except Exception as error: # pylint: disable=W0718
             steps.append(error)
 

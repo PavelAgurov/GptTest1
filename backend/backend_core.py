@@ -1,7 +1,7 @@
 """
     Back-end
 """
-# pylint: disable=C0301,C0103,C0303,C0304,C0305,C0411,E1121,R0902,R0903
+# pylint: disable=C0301,C0103,C0303,C0304,C0305,C0411,E1121,R0902,R0903,W1203
 
 import re
 from enum import Enum
@@ -11,6 +11,7 @@ from unstructured.partition.html import partition_html
 import urllib
 from urllib.parse import urlparse
 import pandas as pd
+import logging
 
 from backend.llm_manager import LLMManager, LlmCallbacks, ScoreTopicsResult, TranslationResult, LeadersListResult
 from backend.topic_manager import TopicManager, TopicDetectedByURL
@@ -20,6 +21,8 @@ from backend.html_processors.bs4_processor import get_plain_text_bs4
 from backend.gold_data import get_gold_data
 from backend.tuning_manager import TuningManager
 from data.parser_html_classes import HTML_CLASSES_WHITELIST, HTML_CLASSES_BLACKLIST
+
+logger : logging.Logger = logging.getLogger()
 
 class ReadModeHTML(Enum):
     """Types of HTML reading"""
@@ -216,8 +219,9 @@ class BackEndCore():
         senior_pmi_leaders = []
         leaders_list_str = None
         self.report_substatus('Detect Leaders...')
+        logger.info('Detect Leaders...')
         leaders_list : LeadersListResult = self.llm_manager.detect_leaders(url, input_text)
-        print(leaders_list)
+        logger.debug(leaders_list)
         if leaders_list and leaders_list.leaders:
             leaders_list_str = '|'.join([f'{leader.name}, {leader.company}, {leader.title}, {leader.senior}[{leader.counter}]' for leader in leaders_list.leaders if leader.name])
             senior_pmi_leaders = [leader for leader in leaders_list.leaders if leader.senior and leader.company and leader.company.lower() in self.PMI_COMPANY_NAMES]
@@ -234,7 +238,7 @@ class BackEndCore():
 
         # topic detected by URL, sorted by detected position
         topic_index_by_url_list : list[TopicDetectedByURL] = self.topic_manager.get_topics_by_url(url)
-        print(f'topic_index_by_url_list={topic_index_by_url_list}')
+        logger.debug(f'topic_index_by_url_list={topic_index_by_url_list}')
         topics_by_url_info = ','.join([f'{topic_dict[t.topic_index].name}[{t.url_position}]' for t in topic_index_by_url_list])
 
         topics_score_list = list[TopicScoreItem]()
@@ -347,8 +351,8 @@ class BackEndCore():
 
     def fetch_data_from_url(self, url : str, read_mode : ReadModeHTML) -> str:
         """load text from URL"""
-        print('---------------------------------------')
-        print(f'Fetch data from URL [{url}]')
+        logger.info('---------------------------------------')
+        logger.info(f'Fetch data from URL [{url}] read_mode={read_mode}')
         input_text = self.load_html(url, read_mode)
         return input_text
 

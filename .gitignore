@@ -11,3 +11,5 @@ result.xlsx
 /.tiktoken-cache
 /backend/html_processors/__pycache__
 /data/__pycache__
+/utils/__pycache__
+/.logs

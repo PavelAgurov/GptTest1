@@ -1,13 +1,13 @@
 """Bulk output"""
 
-# pylint: disable=C0301,C0103,C0303,C0304,C0305,C0411,E1121,R0903
+# pylint: disable=C0301,C0103,C0303,C0304,C0305,C0411,E1121,R0903,W1203
 
 import pandas as pd
 from dataclasses import dataclass
 
 from backend.base_classes import ScoreResultItem, TopicDefinition
 from backend.gold_data import GoldenData
-from utils import str2lower
+from utils.utils import str2lower
 
 @dataclass
 class BulkOutputParams:
@@ -156,8 +156,6 @@ class BulkOutput():
 
         bulk_data = []
         for row in bulk_result:
-            print(row)
-
             if row.error:
                 erorr_row = [row.current_url, row.error]
                 erorr_row.extend([None]*(len(bulk_columns)-2))

@@ -2,11 +2,14 @@
     Utils
 """
 
-# pylint: disable=C0301,C0103,C0303,C0304,C0305,C0411
+# pylint: disable=C0301,C0103,C0303,C0304,C0305,C0411,W1203
 
 import re
 import json
 import traceback
+import logging
+
+logger : logging.Logger = logging.getLogger()
 
 def str2lower(text : str, none_value : str = None) -> str:
     """Lower case of text"""
@@ -44,11 +47,11 @@ def get_llm_json(text : str) -> any:
     try:
         return json.loads(get_fixed_json(text))
     except Exception as error: # pylint: disable=W0718
-        print('----------------------')
-        print(f'Error: {error}.')
-        print(f'Track: {traceback.format_exc()}')
-        print(f'JSON: {text}')
-        print('----------------------')
+        logger.error('----------------------')
+        logger.error(f'Error: {error}.')
+        logger.error(f'Track: {traceback.format_exc()}')
+        logger.error(f'JSON: {text}')
+        logger.error('----------------------')
         raise error
 
 def get_fixed_json(text : str) -> str:
@@ -64,12 +67,4 @@ def get_fixed_json(text : str) -> str:
     if close_bracket == -1:
         return text
     return text[open_bracket:close_bracket+1]
-
-def grouper(iterable, step) -> list:
-    """Split list into groups"""
-    result = []
-    for i in range(0, len(iterable), step):
-        result.append(iterable[i:i+step])
-    return result
-
 

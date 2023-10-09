@@ -1,10 +1,11 @@
 """LLM Manager"""
 
-# pylint: disable=C0301,C0103,C0303,C0304,C0305,C0411,E1121
+# pylint: disable=C0301,C0103,C0303,C0304,C0305,C0411,E1121,W1203
 
 import os
 from dataclasses import dataclass
 import traceback
+import logging
 
 import langchain
 from langchain.prompts.prompt import PromptTemplate
@@ -19,7 +20,9 @@ from backend.llm import prompts
 from backend.llm.refine import RefineChain
 from backend.text_processing import limit_text_tokens
 from backend.base_classes import TopicDefinition
-from utils import get_llm_json, parse_llm_xml, str2lower
+from utils.utils import get_llm_json, parse_llm_xml, str2lower
+
+logger : logging.Logger = logging.getLogger()
 
 @dataclass
 class LeaderRecord:
@@ -157,8 +160,8 @@ class LLMManager():
         refine_result = RefineChain(self.llm_summary).refine(text, self.MAX_MODEL_TOKENS - self.MAX_TOKENS_SUMMARY)
 
         for step in refine_result.steps:
-            print(step)
-        print('-------------------------------------------------')
+            logger.debug(step)
+        logger.debug('-------------------------------------------------')
         summary = ""
         if not refine_result.error:
             summary = refine_result.summary
@@ -178,14 +181,14 @@ class LLMManager():
         with get_openai_callback() as cb:
             translated_text = self.translation_chain.run(input = text)
         total_tokens= cb.total_tokens
-        print(translated_text)
+        logger.debug(translated_text)
         try:
             translated_text_json = parse_llm_xml(translated_text, ["lang", "output"])
             translated_lang = translated_text_json["lang"]
             translated_text = translated_text_json["output"]
             return TranslationResult(translated_lang, translated_text, total_tokens, None)
         except Exception as error: # pylint: disable=W0718
-            print(f'Error: {error}. JSON: {translated_text}')
+            logger.error(f'Error: {error}. JSON: {translated_text}')
             return TranslationResult(None, None, total_tokens, None)
         
     def clean_up_text(self, text : str) -> str:
@@ -214,6 +217,7 @@ class LLMManager():
         topics_for_prompt = "\n".join(topics_for_prompt_list)
 
         self.report_status('Request LLM to score...')
+        logger.info('Request LLM to score...')
 
         prompt_without_text = self.score_chain.prompt.format(topics = topics_for_prompt, text = '')
         prompt_without_text_tokens = len(self.token_estimator.encode(prompt_without_text))
@@ -226,9 +230,9 @@ class LLMManager():
             reduced_text_tokens = len(self.token_estimator.encode(reduced_text))
             cut_information = f'current_paragraph size={len(current_paragraph)}), max_tokens_score={max_tokens_score}, prompt_without_text_tokens={prompt_without_text_tokens}, reduced_text_tokens={reduced_text_tokens}'
             if reduced_text != current_paragraph:
-                print(f'prompt_without_text_tokens={prompt_without_text_tokens}')
+                logger.debug(f'prompt_without_text_tokens={prompt_without_text_tokens}')
                 cut_information = f'{cut_information}. CUT TEXT before score: {len(current_paragraph)} => {len(reduced_text)} ({reduced_text_tokens} tokens)'
-                print(cut_information)
+                logger.debug(cut_information)
 
             #prompt_full = self.score_chain.prompt.format(topics = topics_for_prompt, text = reduced_text)
             #print(prompt_full)
@@ -238,7 +242,7 @@ class LLMManager():
             total_token_count += cb.total_tokens
             self.report_status(f'Done. Got {len(extracted_score)} chars.')
             extracted_score_tokens = len(self.token_estimator.encode(extracted_score))
-            print(f'extracted_score_tokens={extracted_score_tokens}')
+            logger.debug(f'extracted_score_tokens={extracted_score_tokens}')
         except Exception as error: # pylint: disable=W0718
             error_list.append(f'Error: {error}\n\n{traceback.format_exc()}. URL: {url}. {cut_information}')
 
@@ -279,7 +283,7 @@ class LLMManager():
 
     def detect_leaders(self, url : str, text : str) -> LeadersListResult:
         """Detect leaders"""
-        
+
         # TODO - split into chunks
         reduced_text = limit_text_tokens(text, self.token_estimator,  1500)
 
@@ -289,10 +293,10 @@ class LLMManager():
                 extracted_leaders = self.leaders_chain.run(text = reduced_text)
             total_token_count = cb.total_tokens
         except Exception as error: # pylint: disable=W0718
-            print(f'Error: {error}. URL: {url}.')
+            logger.error(f'Error: {error}. URL: {url}.')
             return LeadersListResult(None, total_token_count, error)
 
-        print(extracted_leaders)
+        logger.debug(extracted_leaders)
 
         result = list[LeaderRecord]()
         try:
@@ -312,7 +316,7 @@ class LLMManager():
                     continue
                 result.append(LeaderRecord(leader_name, company, title, senior, counter))
         except Exception as error: # pylint: disable=W0718
-            print(f'Error: {error}. JSON: {extracted_leaders}. URL: {url}.')
+            logger.error(f'Error: {error}. JSON: {extracted_leaders}. URL: {url}.')
             return LeadersListResult(None, total_token_count, error)
 
         return LeadersListResult(result, total_token_count, None)
