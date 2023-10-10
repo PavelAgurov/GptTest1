@@ -20,7 +20,7 @@ from backend.bulk_output import BulkOutput, BulkOutputParams
 from backend.html_processors.bs4_processor import get_plain_text_bs4
 from backend.gold_data import get_gold_data
 from backend.tuning_manager import TuningManager
-from data.parser_html_classes import HTML_CLASSES_WHITELIST, HTML_CLASSES_BLACKLIST
+from data.parser_html_classes import HTML_CLASSES_WHITELIST, HTML_CLASSES_BLACKLIST, EXCLUDED_SENTENSES
 
 logger : logging.Logger = logging.getLogger()
 
@@ -181,6 +181,10 @@ class BackEndCore():
         self.backend_params.callbacks.show_original_text_callback(input_text)
         self.report_substatus(f'Done. Got {input_text_len} chars.')
 
+        if input_text_len == 0:
+            self.report_substatus('Input is empty')
+            return ScoreResultItem.Empty(url, input_text_len)
+            
         if only_read_html:
             return ScoreResultItem.Empty(url, input_text_len)
 
@@ -355,6 +359,14 @@ class BackEndCore():
         logger.info('---------------------------------------')
         logger.info(f'Fetch data from URL [{url}] read_mode={read_mode}')
         input_text = self.load_html(url, read_mode)
+
+        if EXCLUDED_SENTENSES and input_text:
+            for sentense in EXCLUDED_SENTENSES:
+                input_text = input_text.replace(sentense, ' ')
+
+        if input_text:
+            input_text = input_text.strip()
+
         return input_text
 
     def get_translated_text(self, text : str) -> TranslatedResult:

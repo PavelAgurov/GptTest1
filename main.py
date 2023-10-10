@@ -290,9 +290,9 @@ def show_topic_editor(topic_manager : TopicManager):
     )
     return editor_control
 
-def show_bulk_data_from_sesstion():
+def show_bulk_data_from_session():
     """Show bulk data result"""
-    data = st.session_state[SESSION_BULK_RESULT]
+    data : pd.DataFrame = st.session_state[SESSION_BULK_RESULT]
     if data is None:
         return
     output_container.dataframe(data, use_container_width=True, hide_index=True)
@@ -307,7 +307,7 @@ def show_bulk_data_from_sesstion():
             on_click= skip_callback
         )
 
-    if add_gold_data_checkbox:
+    if add_gold_data_checkbox and 'Main correct' in data.columns:
         main_correct      = data['Main correct'].sum()
         primary_correct   = data['Primary correct'].sum()
         secondary_correct = data['Secondary correct'].sum()
@@ -382,7 +382,7 @@ export_topic_editor_container.download_button(
 )
 
 if not run_button:
-    show_bulk_data_from_sesstion()
+    show_bulk_data_from_session()
     st.stop()
 
 st.session_state[SESSION_BULK_RESULT] = None
@@ -450,4 +450,4 @@ df_bulk_result = back_end.build_ouput_data(bulk_result, bulk_output_params)
 if df_bulk_result.error:
     bulk_error_container.markdown(df_bulk_result.error)
 st.session_state[SESSION_BULK_RESULT] = df_bulk_result.data
-show_bulk_data_from_sesstion()
+show_bulk_data_from_session()
