@@ -10,7 +10,7 @@ import logging
 import langchain
 from langchain.prompts.prompt import PromptTemplate
 from langchain.text_splitter import CharacterTextSplitter
-from langchain.chat_models import ChatOpenAI
+from langchain.chat_models import ChatOpenAI, AzureChatOpenAI
 from langchain.chains import LLMChain
 from langchain.cache import SQLiteCache
 from langchain.callbacks import get_openai_callback
@@ -66,6 +66,9 @@ class ScoreTopicsResult:
 class LLMManager():
     """LLM Manager"""
 
+    openai_api_type : str
+    openai_api_deployment : str
+
     callbacks: LlmCallbacks
     translation_chain : LLMChain
     score_chain : LLMChain
@@ -74,34 +77,29 @@ class LLMManager():
     text_splitter : CharacterTextSplitter
     token_estimator : tiktoken.core.Encoding
 
-# model 3.5        input                 output
-#4K  context  $0.0015 / 1K tokens	$0.002 / 1K tokens
-#16K context  $0.003  / 1K tokens	$0.004 / 1K tokens
-
     MODEL_NAME = "gpt-3.5-turbo" # gpt-3.5-turbo-16k
     MAX_MODEL_TOKENS = 4097 # max token for gpt 3.5
     MAX_TOKENS_SCORE = 1600
     MAX_TOKENS_SUMMARY = 2000
-    MAX_TOKENS_LEADERS = 1000
+    MAX_TOKENS_LEADERS = 2000
     FIRST_PARAGRAPH_MAX_TOKEN = 200 # small text to check language
     MAX_TOKENS_TRANSLATION    = 1000
 
     _TIKTOKEN_CACHE_DIR = ".tiktoken-cache"
 
-    EXCLUDED_LEADER_NAMES = ['unknown', 'name of top manager', 'pmi']
-    EXCLUDED_LEADER_TITLES = ['company']
+    EXCLUDED_LEADER_NAMES = ['unknown', 'name of top manager', 'pmi', 'n/a']
+    EXCLUDED_LEADER_TITLES = ['company', 'n/a']
 
-    __OPEN_API_KEY : str
-
-    def __init__(self, open_api_key : str, callbacks: LlmCallbacks):
+    def __init__(self, all_secrets : dict[str, any], open_api_key_ui : str, callbacks: LlmCallbacks):
         self.callbacks = callbacks
-        self.__OPEN_API_KEY = open_api_key
 
         langchain.llm_cache = SQLiteCache()
 
         # https://github.com/openai/tiktoken/issues/75
         os.makedirs(self._TIKTOKEN_CACHE_DIR, exist_ok=True)
         os.environ["TIKTOKEN_CACHE_DIR"] = self._TIKTOKEN_CACHE_DIR
+
+        self.init_openai_environment(all_secrets, open_api_key_ui)
 
         llm_translation = self.create_chat_llm(self.MAX_TOKENS_TRANSLATION)
         translation_prompt = PromptTemplate.from_template(prompts.translation_prompt_template)
@@ -126,15 +124,57 @@ class LLMManager():
 
         self.token_estimator = tiktoken.encoding_for_model(self.MODEL_NAME)
 
+    def init_openai_environment(self, all_secrets : dict[str, any], open_api_key_ui : str):
+        """Inint OpenAI or Azure environment"""
+
+        self.openai_api_type = all_secrets.get('OPENAI_API_TYPE')
+ 
+        if open_api_key_ui: # provided from ui
+            os.environ["OPENAI_API_KEY"] = open_api_key_ui
+            logger.info('Run with provided openai key')
+        elif self.openai_api_type == 'openai':
+            openai_secrets = all_secrets.get('open_api_openai')
+            if openai_secrets:
+                os.environ["OPENAI_API_KEY"] = openai_secrets.get('OPENAI_API_KEY')
+                logger.info('Run with OpenAI')
+            else:
+                logger.error('open_api_openai section is required')
+        elif self.openai_api_type == 'azure':
+            azure_secrets = all_secrets.get('open_api_azure')
+            if azure_secrets:
+                os.environ["OPENAI_API_KEY"] = azure_secrets.get('OPENAI_API_KEY')
+                os.environ["OPENAI_API_TYPE"] = "azure"
+                os.environ["OPENAI_API_VERSION"] = azure_secrets.get('OPENAI_API_VERSION')
+                os.environ["OPENAI_API_BASE"] = azure_secrets.get('OPENAI_API_BASE')
+                self.openai_api_deployment = azure_secrets.get('OPENAI_API_DEPLOYMENT')
+                logger.info('Run with Azure OpenAI')
+            else:
+                logger.error('open_api_azure section is required')
+        else:
+            logger.error(f'unsupported OPENAI_API_TYPE: {self.openai_api_type}')
+
     def create_chat_llm(self, max_tokens : int) -> ChatOpenAI:
         """Create LLM"""
-        return ChatOpenAI(
-            model_name     = self.MODEL_NAME, 
-            openai_api_key = self.__OPEN_API_KEY, 
-            max_tokens     = max_tokens,
-            temperature    = 0
-        )
+        if self.openai_api_type == 'openai':
+            return ChatOpenAI(
+                model_name     = self.MODEL_NAME,
+                max_tokens     = max_tokens,
+                temperature    = 0,
+                verbose        = False
+            )
         
+        if self.openai_api_type == 'azure':
+            return AzureChatOpenAI(
+                model_name     = self.MODEL_NAME,
+                max_tokens     = max_tokens,
+                temperature    = 0,
+                verbose        = False,
+                deployment_name=  self.openai_api_deployment
+            )
+        
+        logger.error(f'unsupported OPENAI_API_TYPE: {self.openai_api_type}')
+        return None
+            
     def report_status(self, status_str : str):
         """Report status"""
         self.callbacks.report_status_callback(status_str)
@@ -299,11 +339,14 @@ class LLMManager():
                 title       = t['title']
                 senior      = t['senior']
                 counter     = t['counter']
+                is_person   = t['is_person']
                 if not title or title.lower() in self.EXCLUDED_LEADER_TITLES:
                     continue
                 if not leader_name or leader_name.lower() in self.EXCLUDED_LEADER_NAMES:
                     continue
                 if leader_name.lower() == title.lower(): # we need real name or real title
+                    continue
+                if not is_person:
                     continue
                 result.append(LeaderRecord(leader_name, company, title, senior, counter))
         except Exception as error: # pylint: disable=W0718

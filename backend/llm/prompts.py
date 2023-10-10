@@ -31,7 +31,14 @@ If the text does not mention anything related to the topic - score should be 0.
 
 Do not make up new topics, use only provided topic list!
 
-Provide the output in JSON format.
+Provide the output in JSON format:
+"topics":[
+    {{
+        "name"  : "topic name",
+        "score" : relevance score,
+        "explanation": "explanation"
+    }}
+]
 
 {topics}
 
@@ -41,20 +48,24 @@ Provide the output in JSON format.
 """
 
 leaders_prompt_template = """\
-You are press secretary.
+You are useful press secretary.
 Your task is to extract all managers (president, head, chief, CEO, VP, SVP etc.) and their titles from provided text (delimited with XML tags).
+Extract ONLY humans.
 Do not make up answers, use only provided text!
 
-Provide the output in JSON:
+Provide the output in JSON format (only records with non empty name):
 
-"managers":{{
-    {{
-        "name" : "name of top manager",
-        "company" : "company name where he/she is working or worked",
-        "title" : "title of top manager",
-        "senior": True, if manager is a senior staff,
-        "counter" : how many times name appears in the text
-    }}
+{{
+    "managers":[
+        {{
+            "name" : "name of top manager",
+            "company" : "company name where he/she is working or worked",
+            "title" : "title of top manager",
+            "senior": true, if manager is a senior staff,
+            "is_person": true, if record is about person,
+            "counter" : how many times name appears in the text
+        }}
+    ]
 }}
 
 <text>

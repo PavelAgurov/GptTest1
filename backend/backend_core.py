@@ -56,7 +56,8 @@ class BackendParams:
     skip_summary       : bool
     use_topic_priority : bool
     use_leaders        : bool
-    open_api_key       : str
+    all_secrets        : dict[str, any]
+    open_api_key_ui    : str
     callbacks          : BackendCallbacks
 
 @dataclass
@@ -97,7 +98,7 @@ class BackEndCore():
             backend_params.callbacks.report_error_callback
         )
         self.topic_manager  = TopicManager()
-        self.llm_manager    = LLMManager(backend_params.open_api_key, llm_callbacks)
+        self.llm_manager    = LLMManager(backend_params.all_secrets, backend_params.open_api_key_ui, llm_callbacks)
         self.tuning_manager = TuningManager()
 
     def report_status(self, status_str : str):

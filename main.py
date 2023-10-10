@@ -139,7 +139,7 @@ with tab_process:
     bulk_error_container = st.empty()
 
 with tab_settings:
-    open_api_key = st.text_input("OpenAPI Key: ", "", key="open_api_key")
+    open_api_key_ui = st.text_input("OpenAPI Key: ", "", key="open_api_key")
     skip_translation = st.checkbox(label= "Skip translation", value=True)
     col_ouw_1, col_ouw_2, _ = st.columns([30, 40, 40])
     override_by_url_words = col_ouw_1.checkbox(label= "Override primary topic by url words detection", value=False)
@@ -320,10 +320,7 @@ def convert_df_to_csv(df_csv : pd.DataFrame):
     # IMPORTANT: Cache the conversion to prevent computation on every rerun
     return df_csv.to_csv().encode('utf-8')
 
-if open_api_key:
-    LLM_OPENAI_API_KEY = open_api_key
-else:
-    LLM_OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
+all_secrets = {s[0]:s[1] for s in st.secrets.items()}
 
 backend_params = BackendParams(
     site_map_only,
@@ -334,7 +331,8 @@ backend_params = BackendParams(
     skip_summary,
     use_topic_priority,
     use_leaders,
-    LLM_OPENAI_API_KEY,
+    all_secrets,
+    open_api_key_ui,
     BackendCallbacks(
         report_status,
         report_substatus,

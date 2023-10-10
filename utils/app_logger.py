@@ -15,6 +15,7 @@ def init_root_logger():
     """Init root logger"""
 
     logger = logging.getLogger()
+    logger.handlers.clear()
     stream_handler = logging.StreamHandler()
     stream_handler.setFormatter(ColoredConsoleFormatter())
     logger.addHandler(stream_handler)
