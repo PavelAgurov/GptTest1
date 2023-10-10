@@ -91,8 +91,11 @@ class LLMManager():
     EXCLUDED_LEADER_NAMES = ['unknown', 'name of top manager', 'pmi']
     EXCLUDED_LEADER_TITLES = ['company']
 
+    __OPEN_API_KEY : str
+
     def __init__(self, open_api_key : str, callbacks: LlmCallbacks):
         self.callbacks = callbacks
+        self.__OPEN_API_KEY = open_api_key
 
         langchain.llm_cache = SQLiteCache()
 
@@ -100,38 +103,17 @@ class LLMManager():
         os.makedirs(self._TIKTOKEN_CACHE_DIR, exist_ok=True)
         os.environ["TIKTOKEN_CACHE_DIR"] = self._TIKTOKEN_CACHE_DIR
 
-        llm_translation = ChatOpenAI(
-            model_name     = self.MODEL_NAME, 
-            openai_api_key = open_api_key,
-            max_tokens     = self.MAX_TOKENS_TRANSLATION,
-            temperature    = 0,
-            max_retries    = 3
-        )
+        llm_translation = self.create_chat_llm(self.MAX_TOKENS_TRANSLATION)
         translation_prompt = PromptTemplate.from_template(prompts.translation_prompt_template)
         self.translation_chain = LLMChain(llm=llm_translation, prompt = translation_prompt)
 
-        llm_score = ChatOpenAI(
-            model_name = self.MODEL_NAME,
-            openai_api_key = open_api_key,
-            max_tokens = self.MAX_TOKENS_SCORE,
-            temperature = 0
-        )
+        llm_score = self.create_chat_llm(self.MAX_TOKENS_SCORE)
         score_prompt = PromptTemplate.from_template(prompts.score_prompt_template)
         self.score_chain  = LLMChain(llm=llm_score, prompt = score_prompt)
 
-        self.llm_summary = ChatOpenAI(
-            model_name     = self.MODEL_NAME, 
-            openai_api_key = open_api_key, 
-            max_tokens     = self.MAX_TOKENS_SUMMARY,
-            temperature    = 0
-        )
+        self.llm_summary = self.create_chat_llm(self.MAX_TOKENS_SUMMARY)
 
-        llm_leaders = ChatOpenAI(
-            model_name     = self.MODEL_NAME, 
-            openai_api_key = open_api_key, 
-            max_tokens     = self.MAX_TOKENS_LEADERS,
-            temperature    = 0
-        )
+        llm_leaders = self.create_chat_llm(self.MAX_TOKENS_LEADERS)
         leaders_prompt = PromptTemplate.from_template(prompts.leaders_prompt_template)
         self.leaders_chain  = LLMChain(llm=llm_leaders, prompt = leaders_prompt)
 
@@ -144,6 +126,15 @@ class LLMManager():
 
         self.token_estimator = tiktoken.encoding_for_model(self.MODEL_NAME)
 
+    def create_chat_llm(self, max_tokens : int) -> ChatOpenAI:
+        """Create LLM"""
+        return ChatOpenAI(
+            model_name     = self.MODEL_NAME, 
+            openai_api_key = self.__OPEN_API_KEY, 
+            max_tokens     = max_tokens,
+            temperature    = 0
+        )
+        
     def report_status(self, status_str : str):
         """Report status"""
         self.callbacks.report_status_callback(status_str)
