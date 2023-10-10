@@ -10,3 +10,4 @@ unstructured
 beautifulsoup4
 openpyxl
 termcolor
+toml

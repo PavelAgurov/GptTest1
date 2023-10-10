@@ -7,6 +7,7 @@ import os
 import sys
 import logging
 import argparse
+import toml
 
 from backend.backend_core import BackEndCore, BackendParams, BackendCallbacks, ReadModeHTML
 from backend.base_classes import ScoreResultItem, MainTopics, TopicScoreItem
@@ -14,6 +15,8 @@ from utils.app_logger import init_root_logger
 from backend.bulk_output import BulkOutputParams
 
 OUTPUT_EXTENSION = '.xlsx'
+
+DEFAULT_CONFIG_FILE = r'.streamlit\secrets.toml'
 
 total_used_tokens = 0
 logger : logging.Logger
@@ -26,7 +29,7 @@ def report_status(status_str : str):
 def report_substatus(substatus_str : str):
     """Show second line of status"""
     if substatus_str:
-        logger.info(substatus_str)
+        logger.debug(substatus_str)
 
 def used_tokens_callback(used_tokens : int):
     """Update token counter"""
@@ -65,12 +68,12 @@ def show_topics_score_callback(result_list : list[TopicScoreItem]): # pylint: di
     """Show topic score"""
     pass  # pylint: disable=W0107
 
-def run(input_file : str, output_folder : str):
+def run(input_file : str, output_folder : str, all_secrets : dict[str, any], env_openai_key : str):
     """Main run cycle"""
 
     logger.info(f'Read URLs from file {input_file}')
-    with open(input_file, "rt", encoding="utf-8") as f:
-        input_url_list = f.readlines()
+    with open(input_file, "rt", encoding="utf-8") as f_input:
+        input_url_list = f_input.readlines()
 
     if input_url_list:
         input_url_list = [u.strip() for u in input_url_list if not u.startswith('#')]
@@ -99,7 +102,8 @@ def run(input_file : str, output_folder : str):
         skip_summary,
         use_topic_priority,
         use_leaders,
-        LLM_OPENAI_API_KEY,
+        all_secrets,
+        env_openai_key,
         BackendCallbacks(
             report_status,
             report_substatus,
@@ -158,15 +162,15 @@ def run(input_file : str, output_folder : str):
     except Exception as saving_error: # pylint: disable=W0718
         logger.error(saving_error)
 
-if __name__ == '__main__':
-    total_used_tokens = 0
-    logger = init_root_logger()
+def main():
+    """Main procedure"""
 
     # Initialize parser
     parser = argparse.ArgumentParser()
     parser.add_argument("-i", "--Input", help = "Input file name with URLs (txt)", required=False)
     parser.add_argument("-p", "--Package", help = "Package file name (txt)", required=False)
     parser.add_argument("-o", "--Output", help = "Output folder name", required=False)
+    parser.add_argument("-c", "--Config", help = "Config file (toml)", required=False)
     args = parser.parse_args()
 
     if not args.Input and not args.Package:
@@ -197,10 +201,26 @@ if __name__ == '__main__':
         os.makedirs(output_folder, exist_ok= True)
     logger.info(f'Output folder: {args.Output}')
 
-    LLM_OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
-    if not LLM_OPENAI_API_KEY:
-        logger.error('GPT KEY not found.')
-        sys.exit()
+    env_openai_key = None
+    config = None
+    settings_config_file = DEFAULT_CONFIG_FILE
+    if args.Config: # if config is provided - file must exist
+        settings_config_file = args.Config
+        if not os.path.isfile(settings_config_file):
+            logger.error(f'Config file {settings_config_file} not found.')
+            sys.exit()
+
+    # if we have default config file or provided config - use it
+    if os.path.isfile(settings_config_file):
+        with open(settings_config_file, 'r', encoding="utf-8") as f:
+            config = toml.load(f)
+    else:
+        # if there is no config file - we should have env variable
+        env_openai_key = os.environ.get("OPENAI_API_KEY")
+        if not env_openai_key:
+            logger.error('GPT KEY not found.')
+            sys.exit()
+
 
     logger.info('Start processing...')
     for index, input_file in enumerate(input_file_list):
@@ -212,6 +232,11 @@ if __name__ == '__main__':
                 if not os.path.dirname(input_file):
                     input_file = os.path.join(os.path.dirname(args.Package), input_file)
 
-            run(input_file, output_folder)
+            run(input_file, output_folder, config, env_openai_key)
         except Exception as run_error: # pylint: disable=W0718
             logger.error(run_error)
+
+if __name__ == '__main__':
+    total_used_tokens = 0
+    logger = init_root_logger()
+    main()

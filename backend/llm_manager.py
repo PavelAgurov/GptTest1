@@ -127,16 +127,23 @@ class LLMManager():
     def init_openai_environment(self, all_secrets : dict[str, any], open_api_key_ui : str):
         """Inint OpenAI or Azure environment"""
 
-        self.openai_api_type = all_secrets.get('OPENAI_API_TYPE')
+        if not all_secrets and not open_api_key_ui:
+            logger.error('Gpt key should be provided by external key or environment variable or config file')
+
+        self.openai_api_type = None
+        if all_secrets:
+            self.openai_api_type = all_secrets.get('OPENAI_API_TYPE')
+        self.openai_api_deployment = None
  
-        if open_api_key_ui: # provided from ui
+        if open_api_key_ui: # provided from ui - will be openai
             os.environ["OPENAI_API_KEY"] = open_api_key_ui
+            self.openai_api_type = 'openai'
             logger.info('Run with provided openai key')
         elif self.openai_api_type == 'openai':
             openai_secrets = all_secrets.get('open_api_openai')
             if openai_secrets:
                 os.environ["OPENAI_API_KEY"] = openai_secrets.get('OPENAI_API_KEY')
-                logger.info('Run with OpenAI')
+                logger.info('Run with OpenAI from config file')
             else:
                 logger.error('open_api_openai section is required')
         elif self.openai_api_type == 'azure':
@@ -147,7 +154,7 @@ class LLMManager():
                 os.environ["OPENAI_API_VERSION"] = azure_secrets.get('OPENAI_API_VERSION')
                 os.environ["OPENAI_API_BASE"] = azure_secrets.get('OPENAI_API_BASE')
                 self.openai_api_deployment = azure_secrets.get('OPENAI_API_DEPLOYMENT')
-                logger.info('Run with Azure OpenAI')
+                logger.info('Run with Azure OpenAI config file')
             else:
                 logger.error('open_api_azure section is required')
         else:
