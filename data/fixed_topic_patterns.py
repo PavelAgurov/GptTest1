@@ -23,7 +23,9 @@ FIXED_TOPIC_PATTERNS : list[FixedTopicPattern] = [
         'Investor Relations',
         '',
         False
-    )
+    ),
+    FixedTopicPattern.Ignore('https://www.pmi.com/protected-area'),
+    FixedTopicPattern.Ignore('https://www.pmi.com/markets/egypt/ar')
 ]
 
 FIXED_TOPIC_PATTERNS_DICT = {f.url_prefix: f for f in FIXED_TOPIC_PATTERNS}

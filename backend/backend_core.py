@@ -178,6 +178,10 @@ class BackEndCore():
             fixed_primary_topic_name   = fixed_topic_pattern.primary_topic
             fixed_secondary_topic_name = fixed_topic_pattern.secondary_topic
 
+            if not fixed_primary_topic_name and not fixed_secondary_topic_name:
+                logger.error(f'Page was ignored {url}')
+                return ScoreResultItem.Error(url, "Ignored")
+
             fixed_primary = TopicScoreItem.Empty()
             if fixed_primary_topic_name:
                 fixed_primary = TopicScoreItem(-1, fixed_primary_topic_name, 1, 'Detected by fixed pattern')
@@ -209,14 +213,31 @@ class BackEndCore():
         self.backend_params.callbacks.show_original_text_callback(input_text)
         self.report_substatus(f'Done. Got {input_text_len} chars.')
 
+        if only_read_html:
+            logger.debug('Flag only_read_html is True. Exit.')
+            return ScoreResultItem.Empty(url, input_text_len)
+
         if input_text_len == 0:
             self.report_substatus('Input is empty')
             logger.error(f'Input is empty {url}')
             return ScoreResultItem.Empty(url, input_text_len)
-            
-        if only_read_html:
-            logger.debug('Flag only_read_html is True. Exit.')
-            return ScoreResultItem.Empty(url, input_text_len)
+
+        # detec leaders
+        senior_pmi_leaders = []
+        leaders_list_str = None
+        self.report_substatus('Detect Leaders...')
+        logger.info('Detect Leaders...')
+        leaders_list : LeadersListResult = self.llm_manager.detect_leaders(url, input_text)
+        logger.debug(leaders_list)
+        if leaders_list and leaders_list.leaders:
+            leaders_list_str = '|'.join([f'{leader.name}, {leader.company}, {leader.title}, {leader.senior}[{leader.counter}]' for leader in leaders_list.leaders if leader.name])
+            senior_pmi_leaders = [leader for leader in leaders_list.leaders if leader.senior and leader.company and leader.company.lower() in self.PMI_COMPANY_NAMES]
+        self.report_substatus('')
+
+        # topic detected by URL, sorted by detected position
+        topic_index_by_url_list : list[TopicDetectedByURL] = self.topic_manager.get_topics_by_url(url)
+        logger.debug(f'topic_index_by_url_list={topic_index_by_url_list}')
+        topics_by_url_info = ','.join([f'{topic_dict[t.topic_index].name}[{t.url_position}]' for t in topic_index_by_url_list])
 
         # build summary
         summary = input_text
@@ -252,17 +273,6 @@ class BackEndCore():
         self.backend_params.callbacks.used_tokens_callback(score_topics_result.used_tokens)
         self.report_substatus('')
 
-        senior_pmi_leaders = []
-        leaders_list_str = None
-        self.report_substatus('Detect Leaders...')
-        logger.info('Detect Leaders...')
-        leaders_list : LeadersListResult = self.llm_manager.detect_leaders(url, input_text)
-        logger.debug(leaders_list)
-        if leaders_list and leaders_list.leaders:
-            leaders_list_str = '|'.join([f'{leader.name}, {leader.company}, {leader.title}, {leader.senior}[{leader.counter}]' for leader in leaders_list.leaders if leader.name])
-            senior_pmi_leaders = [leader for leader in leaders_list.leaders if leader.senior and leader.company and leader.company.lower() in self.PMI_COMPANY_NAMES]
-        self.report_substatus('')
-
         if score_topics_result.error:
             self.backend_params.callbacks.report_error_callback(score_topics_result.error)
             return ScoreResultItem.Error(url, score_topics_result.error)
@@ -271,11 +281,6 @@ class BackEndCore():
         
         # topics_score_ordered : dict {topic_index: [score of topic, explanation]}
         topics_score_ordered = collections.OrderedDict(sorted(score_topics_result.result_score.items()))
-
-        # topic detected by URL, sorted by detected position
-        topic_index_by_url_list : list[TopicDetectedByURL] = self.topic_manager.get_topics_by_url(url)
-        logger.debug(f'topic_index_by_url_list={topic_index_by_url_list}')
-        topics_by_url_info = ','.join([f'{topic_dict[t.topic_index].name}[{t.url_position}]' for t in topic_index_by_url_list])
 
         topics_score_list = list[TopicScoreItem]()
         for score_item in score_topics_result.result_score.items():

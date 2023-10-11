@@ -116,3 +116,8 @@ class FixedTopicPattern:
     primary_topic    : str
     secondary_topic  : str
     do_not_run_score : bool
+
+    @classmethod
+    def Ignore(cls, url : str):
+        """Ignore url"""
+        return FixedTopicPattern(url, None, None, True)

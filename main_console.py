@@ -224,6 +224,11 @@ def main():
 
     logger.info('Start processing...')
     for index, input_file in enumerate(input_file_list):
+        if not input_file:
+            continue
+        if input_file.startswith('#'):
+            continue
+
         logger.info(f'Proces {input_file} ({index+1}/{len(input_file_list)})')
         try:
 
