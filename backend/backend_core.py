@@ -230,8 +230,15 @@ class BackEndCore():
         leaders_list : LeadersListResult = self.llm_manager.detect_leaders(url, input_text)
         logger.debug(leaders_list)
         if leaders_list and leaders_list.leaders:
+            for leader in leaders_list.leaders: # not the best hack to detect references without company name
+                if leader.company in leader.title:
+                    leader.company = 'PMI'
             leaders_list_str = '|'.join([f'{leader.name}, {leader.company}, {leader.title}, {leader.senior}[{leader.counter}]' for leader in leaders_list.leaders if leader.name])
-            senior_pmi_leaders = [leader for leader in leaders_list.leaders if leader.senior and leader.company and leader.company.lower() in self.PMI_COMPANY_NAMES]
+            senior_pmi_leaders = [
+                    leader for leader in leaders_list.leaders 
+                    if leader.senior and # only senior staff
+                        leader.company and leader.company.lower() in self.PMI_COMPANY_NAMES # only staff in defined companies
+                ]
         self.report_substatus('')
 
         # topic detected by URL, sorted by detected position
@@ -248,30 +255,37 @@ class BackEndCore():
             self.report_substatus('Summary is ready')
             self.backend_params.callbacks.show_summary_callback(summary)
 
+        topics_score_list    = []
+        translated_lang      = None
+        full_translated_text = ''
+        topics_score_ordered = None
+        score_topics_result : ScoreTopicsResult
+
         extracted_text_len = len(summary)
-        if extracted_text_len == 0:
-            logger.error(f'Summary is empty {url}')
-            return ScoreResultItem.Empty(url, input_text_len)
+        if extracted_text_len > 0:
+            # translation (if needed)
+            full_translated_text = summary
+            translated_lang = ''
+            if not self.backend_params.skip_translation:
+                translation_result = self.get_translated_text(summary)
+                translated_lang = translation_result.lang
+                if not translation_result.no_translation and len(translation_result.translated_text) > 0:
+                    full_translated_text = translation_result.translated_text
+            self.backend_params.callbacks.show_extracted_text_callback(full_translated_text)
 
-        # translation (if needed)
-        full_translated_text = summary
-        translated_lang = ''
-        if not self.backend_params.skip_translation:
-            translation_result = self.get_translated_text(summary)
-            translated_lang = translation_result.lang
-            if not translation_result.no_translation and len(translation_result.translated_text) > 0:
-                full_translated_text = translation_result.translated_text
-        self.backend_params.callbacks.show_extracted_text_callback(full_translated_text)
-
-        self.report_substatus('Run topic score...')
-        score_topics_result : ScoreTopicsResult = self.llm_manager.score_topics(
-                                                    url,
-                                                    full_translated_text,
-                                                    self.topic_manager.get_topic_list()
-                                                )
-        self.backend_params.callbacks.show_debug_json_callback(score_topics_result.debug_json_score)
-        self.backend_params.callbacks.used_tokens_callback(score_topics_result.used_tokens)
-        self.report_substatus('')
+            self.report_substatus('Run topic score...')
+            score_topics_result = self.llm_manager.score_topics(
+                                                        url,
+                                                        full_translated_text,
+                                                        self.topic_manager.get_topic_list()
+                                                    )
+            self.backend_params.callbacks.show_debug_json_callback(score_topics_result.debug_json_score)
+            self.backend_params.callbacks.used_tokens_callback(score_topics_result.used_tokens)
+            self.report_substatus('')
+        else:
+            logger.warning(f'Summary is empty {url}')
+            empty_result_score = {t[0]: (0, None) for t in topic_dict.items()}
+            score_topics_result = ScoreTopicsResult(0, None, None, empty_result_score)
 
         if score_topics_result.error:
             self.backend_params.callbacks.report_error_callback(score_topics_result.error)
@@ -293,11 +307,12 @@ class BackEndCore():
             
             if self.backend_params.url_words_add > 0:
                 for topic_index_by_url in topic_index_by_url_list:
-                    if  topic_index_by_url.topic_index == score_item_topic_index and score_item_topic_score > 0:
-                        original_topic_score = score_item_topic_score
-                        score_item_topic_score = score_item_topic_score + self.backend_params.url_words_add
-                        score_item_topic_expln = f'!{score_item_topic_expln}. Detected by URL: {original_topic_score:.2f}=>{score_item_topic_score:.2f}'
-                        break
+                    if  topic_index_by_url.topic_index == score_item_topic_index:
+                        # we can add url score if detected score > 0 OR we have no input for detection
+                        if score_item_topic_score > 0 or extracted_text_len == 0:
+                            original_topic_score = score_item_topic_score
+                            score_item_topic_score = score_item_topic_score + self.backend_params.url_words_add
+                            score_item_topic_expln = f'!{score_item_topic_expln}. Detected by URL: {original_topic_score:.2f}=>{score_item_topic_score:.2f}'
 
             if self.backend_params.use_topic_priority:
                 topic_priority = topic_dict[score_item_topic_index].priority
@@ -346,6 +361,7 @@ class BackEndCore():
                 )
 
         senior_pmi_leaders_counter = len(senior_pmi_leaders)
+        logger.info(f'senior_pmi_leaders_counter={senior_pmi_leaders_counter}')
 
         if self.backend_params.use_leaders and senior_pmi_leaders_counter >= 2:
             secondary_main_topic = primary_main_topic

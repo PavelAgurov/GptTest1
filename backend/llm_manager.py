@@ -353,6 +353,8 @@ class LLMManager():
                     continue
                 if leader_name.lower() == title.lower(): # we need real name or real title
                     continue
+                if len(leader_name.split(' ')) < 2: # name should contain at least 2 parts
+                    continue
                 if not is_person:
                     continue
                 result.append(LeaderRecord(leader_name, company, title, senior, counter))

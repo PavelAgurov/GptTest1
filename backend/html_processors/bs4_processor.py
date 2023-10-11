@@ -54,7 +54,7 @@ def get_plain_text_bs4(html : str, html_classes_whitelist : list[str], html_clas
         # limitation defined
         if html_classes_whitelist: 
             if need_to_parse_whitelist(t, html_classes_whitelist):
-                paragraph_list.append(t.get_text().strip())
+                paragraph_list.append(t.get_text(separator=" ", strip=True).strip())
             continue
 
         # limitation defined

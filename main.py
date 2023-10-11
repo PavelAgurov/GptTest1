@@ -263,6 +263,8 @@ def show_main_topics_callback(main_topics : MainTopics):
 
 def show_topics_score_callback(result_list : list[TopicScoreItem]):
     """Show topic score"""
+    if result_list is None:
+        return
     if mode_selector != MODE_ONE:
         return
     output_list = [[r.topic, r.topic_score, r.explanation ]for r in result_list]
