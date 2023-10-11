@@ -25,6 +25,8 @@ def report_status(status_str : str):
     """Show first status line"""
     if status_str:
         logger.info(status_str)
+        with open('main_console.log', 'at', encoding="utf-8") as f:
+            f.write(status_str + '\n')
 
 def report_substatus(substatus_str : str):
     """Show second line of status"""
@@ -157,7 +159,7 @@ def run(input_file : str, output_folder : str, all_secrets : dict[str, any], env
 
     try:
         logger.info(f'Saving output {output_file}')
-        df_bulk_result.data.to_excel(output_file)
+        df_bulk_result.data.to_excel(output_file, index= False)
         logger.debug(f'Output {output_file} saved')
     except Exception as saving_error: # pylint: disable=W0718
         logger.error(saving_error)
@@ -229,7 +231,9 @@ def main():
         if input_file.startswith('#'):
             continue
 
-        logger.info(f'Proces {input_file} ({index+1}/{len(input_file_list)})')
+        progress_str = f'Process {input_file} ({index+1}/{len(input_file_list)})'
+        logger.info(progress_str)
+
         try:
 
             # try in the same folder as package file
