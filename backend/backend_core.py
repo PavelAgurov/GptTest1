@@ -15,12 +15,13 @@ import logging
 
 from backend.llm_manager import LLMManager, LlmCallbacks, ScoreTopicsResult, TranslationResult, LeadersListResult
 from backend.topic_manager import TopicManager, TopicDetectedByURL
-from backend.base_classes import TopicScoreItem, MainTopics, ScoreResultItem, TopicDefinition
+from backend.base_classes import TopicScoreItem, MainTopics, ScoreResultItem, TopicDefinition, FixedTopicPattern
 from backend.bulk_output import BulkOutput, BulkOutputParams
 from backend.html_processors.bs4_processor import get_plain_text_bs4
 from backend.gold_data import get_gold_data
 from backend.tuning_manager import TuningManager
 from data.parser_html_classes import HTML_CLASSES_WHITELIST, HTML_CLASSES_BLACKLIST, EXCLUDED_SENTENSES
+from data.fixed_topic_patterns import FIXED_TOPIC_PATTERNS_DICT
 
 logger : logging.Logger = logging.getLogger()
 
@@ -166,6 +167,32 @@ class BackEndCore():
 
         topic_dict : dict[int, TopicDefinition] = self.topic_manager.get_topic_dict()
 
+        fixed_topic_pattern : FixedTopicPattern = None
+        for prefix_item in FIXED_TOPIC_PATTERNS_DICT.items():
+            if url.startswith(prefix_item[0]):
+                fixed_topic_pattern = prefix_item[1]
+                break
+
+        # we found pattern and it's not needed to run score for it
+        if fixed_topic_pattern and fixed_topic_pattern.do_not_run_score:
+            fixed_primary_topic_name   = fixed_topic_pattern.primary_topic
+            fixed_secondary_topic_name = fixed_topic_pattern.secondary_topic
+
+            fixed_primary = TopicScoreItem.Empty()
+            if fixed_primary_topic_name:
+                fixed_primary = TopicScoreItem(-1, fixed_primary_topic_name, 1, 'Detected by fixed pattern')
+            
+            fixed_secondary = TopicScoreItem.Empty()
+            if fixed_secondary_topic_name:
+                fixed_secondary = TopicScoreItem(-1, fixed_secondary_topic_name, 1, 'Detected by fixed pattern')
+
+            fixed_main_topics = MainTopics(fixed_primary, fixed_secondary)
+
+            self.backend_params.callbacks.show_main_topics_callback(fixed_main_topics)
+            self.report_substatus('')
+
+            return ScoreResultItem.Fixed(url, fixed_main_topics)
+
         # load text from URL
         self.report_substatus('Fetch data from URL...')
         input_text = ''
@@ -173,6 +200,7 @@ class BackEndCore():
             input_text = self.fetch_data_from_url(url, read_mode)
         except Exception: # pylint: disable=W0718
             self.report_substatus('Page not found')
+            logger.error(f'Page not found {url}')
             return ScoreResultItem.PageNotFound(url)
 
         # clean up text for LLM usage
@@ -183,9 +211,11 @@ class BackEndCore():
 
         if input_text_len == 0:
             self.report_substatus('Input is empty')
+            logger.error(f'Input is empty {url}')
             return ScoreResultItem.Empty(url, input_text_len)
             
         if only_read_html:
+            logger.debug('Flag only_read_html is True. Exit.')
             return ScoreResultItem.Empty(url, input_text_len)
 
         # build summary
@@ -199,6 +229,7 @@ class BackEndCore():
 
         extracted_text_len = len(summary)
         if extracted_text_len == 0:
+            logger.error(f'Summary is empty {url}')
             return ScoreResultItem.Empty(url, input_text_len)
 
         # translation (if needed)
@@ -301,6 +332,7 @@ class BackEndCore():
         if self.backend_params.override_by_url_words and len(topic_index_by_url_list) > 0:
             topic_index_by_url = topic_index_by_url_list[0].topic_index
             if primary_main_topic.topic_index != topic_index_by_url and primary_main_topic.topic_score <= self.backend_params.override_by_url_words_less:
+                secondary_main_topic = primary_main_topic
                 primary_main_topic = TopicScoreItem(
                     topic_index_by_url,
                     topic_dict[topic_index_by_url].name,
@@ -311,6 +343,7 @@ class BackEndCore():
         senior_pmi_leaders_counter = len(senior_pmi_leaders)
 
         if self.backend_params.use_leaders and senior_pmi_leaders_counter >= 2:
+            secondary_main_topic = primary_main_topic
             primary_main_topic = TopicScoreItem(
                 -1,
                 'Leadership content',
@@ -323,13 +356,22 @@ class BackEndCore():
                 author_pattern = rf'{self.AUTHOR_PATTERN}\s+{pmi_leader.name}'
                 res = re.findall(author_pattern, input_text)
                 if res:
+                    secondary_main_topic = primary_main_topic
                     primary_main_topic = TopicScoreItem(
                         -1,
                         'Leadership content',
                         1,
                         'Detected by author'
                     )
+                    break
 
+        # we have fixed pattern - overwrite all
+        if fixed_topic_pattern:
+            if fixed_topic_pattern.primary_topic:
+                secondary_main_topic = primary_main_topic
+                primary_main_topic   = TopicScoreItem(-1, fixed_topic_pattern.primary_topic, 1, 'Detected by fixed pattern')
+            if fixed_topic_pattern.secondary_topic:
+                secondary_main_topic = TopicScoreItem(-1, fixed_topic_pattern.secondary_topic, 1, 'Detected by fixed pattern')
 
         main_topics = MainTopics(primary_main_topic, secondary_main_topic)
         self.backend_params.callbacks.show_main_topics_callback(main_topics)

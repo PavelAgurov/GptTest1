@@ -111,10 +111,10 @@ with tab_process:
         excel_data_status = st.empty()
     else:
         col_sm1, col_sm2, col_sm3 = st.columns(3)
-        site_map_only  = st.checkbox('Only build sitemap')
         input_sitemap  = col_sm1.text_input("Sitemap URL: ", "", key="input")
         site_map_from  = col_sm2.number_input("From:", min_value=1, max_value= 10000, value=1)
         site_map_limit = col_sm3.number_input("Max count ('0' means 'no limit'):", min_value=0, max_value= 10000, value=100)
+        site_map_only  = st.checkbox('Only build sitemap')
         sime_map_exluded_prefixes = st.text_area(label="Excluded URL prefixes:", value='\n'.join(EXCLUDED_PREFIXES_URLS))
         sime_map_exluded_urls = st.text_area(label="Excluded URLs:", value='\n'.join(EXCLUDED_URLS))
         sitemap_data_status = st.empty()

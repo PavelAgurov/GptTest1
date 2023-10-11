@@ -37,6 +37,12 @@ class TopicScoreItem:
     topic_score : float
     explanation : str
 
+    @classmethod
+    def Empty(cls):
+        """Empty"""
+        return TopicScoreItem(None, None, 0, None)
+
+
 @dataclass
 class MainTopics:
     """Primary and secondary topics"""
@@ -85,7 +91,7 @@ class ScoreResultItem:
 
     @classmethod
     def Empty(cls, url : str, input_text_len : int = 0):
-        """Empry result"""
+        """Empty result"""
         return ScoreResultItem(url, input_text_len, 0, '', 0, None, '', None, None, None, False, None)
     
     @classmethod
@@ -98,3 +104,15 @@ class ScoreResultItem:
         """Error"""
         return ScoreResultItem(url, 0, 0, '', 0, None, 'ERROR', None, None, None, False, error)
 
+    @classmethod
+    def Fixed(cls, url : str, main_topics : MainTopics):
+        """Fixed topics"""
+        return ScoreResultItem(url, 0, 0, '', 0, main_topics, '', None, None, None, False, None)
+
+@dataclass
+class FixedTopicPattern:
+    """Pattern to fixed topic"""
+    url_prefix       : str
+    primary_topic    : str
+    secondary_topic  : str
+    do_not_run_score : bool

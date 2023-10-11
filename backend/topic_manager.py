@@ -35,7 +35,7 @@ class TopicManager():
     __TOPIC_FILE = 'topics.json'
 
     def __init__(self):
-        self.topic_dict = {t.id:t for t in TOPICS_LIST}
+        self.topic_dict = {t.id  : t for t in TOPICS_LIST}
         
         self.url_words = dict[str, int]()
         for topic in TOPICS_LIST:
@@ -56,7 +56,7 @@ class TopicManager():
     def get_topic_dict(self) -> dict[int, TopicDefinition]:
         """Return topic dict [topic_id, TopicDefinition]"""
         return self.topic_dict
-    
+
     def get_topics_by_url(self, url : str) -> list[TopicDetectedByURL]:
         """Check if URL is relevant to some topic"""
         detected_list = list[TopicDetectedByURL]()
