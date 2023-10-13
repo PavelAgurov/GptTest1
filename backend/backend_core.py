@@ -222,7 +222,7 @@ class BackEndCore():
             logger.error(f'Input is empty {url}')
             return ScoreResultItem.Empty(url, input_text_len)
 
-        # detec leaders
+        # detect leaders
         senior_pmi_leaders = []
         leaders_list_str = None
         self.report_substatus('Detect Leaders...')
@@ -231,7 +231,7 @@ class BackEndCore():
         logger.debug(leaders_list)
         if leaders_list and leaders_list.leaders:
             for leader in leaders_list.leaders: # not the best hack to detect references without company name
-                if leader.company in leader.title:
+                if leader and leader.company and (leader.company in leader.title):
                     leader.company = 'PMI'
             leaders_list_str = '|'.join([f'{leader.name}, {leader.company}, {leader.title}, {leader.senior}[{leader.counter}]' for leader in leaders_list.leaders if leader.name])
             senior_pmi_leaders = [

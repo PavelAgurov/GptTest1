@@ -35,7 +35,7 @@ TOPICS_LIST : list[TopicDefinition] = [
       5,
       "Investor Relations",
       "Content related to financial performance, corporate governance, and transparent communication with investors. Provides updates on results, reports, events, and essential investor resources.",
-      url_words=["investor-relations", "inverstor"]
+      url_words=["investor"]
    ),
    TopicDefinition(
       6,
@@ -61,7 +61,7 @@ TOPICS_LIST : list[TopicDefinition] = [
       "Sustainability",
       "Discusses PMI's commitment to sustainability, including reducing waste, addressing social impacts, and protecting human rights. Highlights the company's strategies, initiatives, and partnerships aimed at achieving these goals.",
       priority= 2.5,
-      url_words=['sustainability']
+      url_words=["sustainability"]
    ),
    TopicDefinition(
       10,

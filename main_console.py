@@ -8,6 +8,7 @@ import sys
 import logging
 import argparse
 import toml
+import traceback
 
 from backend.backend_core import BackEndCore, BackendParams, BackendCallbacks, ReadModeHTML
 from backend.base_classes import ScoreResultItem, MainTopics, TopicScoreItem
@@ -244,6 +245,7 @@ def main():
             run(input_file, output_folder, config, env_openai_key)
         except Exception as run_error: # pylint: disable=W0718
             logger.error(run_error)
+            logger.error(traceback.format_exc())
 
 if __name__ == '__main__':
     total_used_tokens = 0
