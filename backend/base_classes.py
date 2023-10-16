@@ -42,6 +42,11 @@ class TopicScoreItem:
         """Empty"""
         return TopicScoreItem(None, None, 0, None)
 
+    @classmethod
+    def ByFixedPattern(cls, fixed_topic_name : str):
+        """Detected by fixed pattern"""
+        return TopicScoreItem(-1, fixed_topic_name, 1, 'Detected by fixed pattern')
+
 
 @dataclass
 class MainTopics:

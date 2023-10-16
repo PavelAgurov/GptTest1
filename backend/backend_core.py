@@ -159,6 +159,32 @@ class BackEndCore():
         self.report_status('Done')
         return result_data
 
+    def __get_fixed_pattern_result(self, url : str, fixed_topic_pattern : FixedTopicPattern) -> ScoreResultItem:
+        """Get fixed result if we don't want to run score"""
+
+        fixed_primary_topic_name   = fixed_topic_pattern.primary_topic
+        fixed_secondary_topic_name = fixed_topic_pattern.secondary_topic
+
+        if not fixed_primary_topic_name and not fixed_secondary_topic_name:
+            logger.error(f'Page was ignored {url}')
+            return ScoreResultItem.Error(url, "Ignored")
+
+        fixed_primary = TopicScoreItem.Empty()
+        if fixed_primary_topic_name:
+            fixed_primary = TopicScoreItem.ByFixedPattern(fixed_primary_topic_name)
+        
+        fixed_secondary = TopicScoreItem.Empty()
+        if fixed_secondary_topic_name:
+            fixed_secondary = TopicScoreItem.ByFixedPattern(fixed_secondary_topic_name)
+
+        fixed_main_topics = MainTopics(fixed_primary, fixed_secondary)
+
+        self.backend_params.callbacks.show_main_topics_callback(fixed_main_topics)
+        self.report_substatus('')
+
+        return ScoreResultItem.Fixed(url, fixed_main_topics)
+
+
     def run_one(self, url : str, read_mode : ReadModeHTML, only_read_html : bool) -> ScoreResultItem:
         """"Run process for one URL"""
 
@@ -167,6 +193,7 @@ class BackEndCore():
 
         topic_dict : dict[int, TopicDefinition] = self.topic_manager.get_topic_dict()
 
+        # try to find fixed pattern for given url
         fixed_topic_pattern : FixedTopicPattern = None
         for prefix_item in FIXED_TOPIC_PATTERNS_DICT.items():
             if url.startswith(prefix_item[0]):
@@ -175,27 +202,7 @@ class BackEndCore():
 
         # we found pattern and it's not needed to run score for it
         if fixed_topic_pattern and fixed_topic_pattern.do_not_run_score:
-            fixed_primary_topic_name   = fixed_topic_pattern.primary_topic
-            fixed_secondary_topic_name = fixed_topic_pattern.secondary_topic
-
-            if not fixed_primary_topic_name and not fixed_secondary_topic_name:
-                logger.error(f'Page was ignored {url}')
-                return ScoreResultItem.Error(url, "Ignored")
-
-            fixed_primary = TopicScoreItem.Empty()
-            if fixed_primary_topic_name:
-                fixed_primary = TopicScoreItem(-1, fixed_primary_topic_name, 1, 'Detected by fixed pattern')
-            
-            fixed_secondary = TopicScoreItem.Empty()
-            if fixed_secondary_topic_name:
-                fixed_secondary = TopicScoreItem(-1, fixed_secondary_topic_name, 1, 'Detected by fixed pattern')
-
-            fixed_main_topics = MainTopics(fixed_primary, fixed_secondary)
-
-            self.backend_params.callbacks.show_main_topics_callback(fixed_main_topics)
-            self.report_substatus('')
-
-            return ScoreResultItem.Fixed(url, fixed_main_topics)
+            return self.__get_fixed_pattern_result(url, fixed_topic_pattern)
 
         # load text from URL
         self.report_substatus('Fetch data from URL...')
@@ -217,29 +224,30 @@ class BackEndCore():
             logger.debug('Flag only_read_html is True. Exit.')
             return ScoreResultItem.Empty(url, input_text_len)
 
-        if input_text_len == 0:
-            self.report_substatus('Input is empty')
-            logger.error(f'Input is empty {url}')
-            return ScoreResultItem.Empty(url, input_text_len)
+        # if input_text_len == 0:
+        #     self.report_substatus('Input is empty')
+        #     logger.error(f'Input is empty {url}')
+        #     return ScoreResultItem.Empty(url, input_text_len)
 
         # detect leaders
-        senior_pmi_leaders = []
-        leaders_list_str = None
-        self.report_substatus('Detect Leaders...')
-        logger.info('Detect Leaders...')
-        leaders_list : LeadersListResult = self.llm_manager.detect_leaders(url, input_text)
-        logger.debug(leaders_list)
-        if leaders_list and leaders_list.leaders:
-            for leader in leaders_list.leaders: # not the best hack to detect references without company name
-                if leader and leader.company and (leader.company in leader.title):
-                    leader.company = 'PMI'
-            leaders_list_str = '|'.join([f'{leader.name}, {leader.company}, {leader.title}, {leader.senior}[{leader.counter}]' for leader in leaders_list.leaders if leader.name])
-            senior_pmi_leaders = [
-                    leader for leader in leaders_list.leaders 
-                    if leader.senior and # only senior staff
-                        leader.company and leader.company.lower() in self.PMI_COMPANY_NAMES # only staff in defined companies
-                ]
-        self.report_substatus('')
+        senior_pmi_leaders   = []
+        all_leaders_list_str = None
+        if input_text_len > 0:
+            self.report_substatus('Detect Leaders...')
+            logger.info('Detect Leaders...')
+            leaders_list : LeadersListResult = self.llm_manager.detect_leaders(url, input_text)
+            logger.debug(leaders_list)
+            if leaders_list and leaders_list.leaders:
+                for leader in leaders_list.leaders: # not the best hack to detect references without company name
+                    if leader and leader.company and (leader.company in leader.title):
+                        leader.company = 'PMI'
+                all_leaders_list_str = '|'.join([f'{leader.name}, {leader.company}, {leader.title}, {leader.senior}[{leader.counter}]' for leader in leaders_list.leaders if leader.name])
+                senior_pmi_leaders = [
+                        leader for leader in leaders_list.leaders 
+                        if leader.senior and # only senior staff
+                            leader.company and leader.company.lower() in self.PMI_COMPANY_NAMES # only staff in defined companies
+                    ]
+            self.report_substatus('')
 
         # topic detected by URL, sorted by detected position
         topic_index_by_url_list : list[TopicDetectedByURL] = self.topic_manager.get_topics_by_url(url)
@@ -248,7 +256,7 @@ class BackEndCore():
 
         # build summary
         summary = input_text
-        if not self.backend_params.skip_summary:
+        if not self.backend_params.skip_summary and input_text_len > 0:
             self.report_substatus('Build summary...')
             summary = self.llm_manager.refine_text(input_text)
             summary = summary.strip()
@@ -259,7 +267,9 @@ class BackEndCore():
         translated_lang      = None
         full_translated_text = ''
         topics_score_ordered = None
-        score_topics_result : ScoreTopicsResult
+        score_topics_result : ScoreTopicsResult = None
+        primary_main_topic   = TopicScoreItem.Empty()
+        secondary_main_topic = TopicScoreItem.Empty()
 
         extracted_text_len = len(summary)
         if extracted_text_len > 0:
@@ -287,67 +297,68 @@ class BackEndCore():
             empty_result_score = {t[0]: (0, None) for t in topic_dict.items()}
             score_topics_result = ScoreTopicsResult(0, None, None, empty_result_score)
 
-        if score_topics_result.error:
+        if score_topics_result and score_topics_result.error:
             self.backend_params.callbacks.report_error_callback(score_topics_result.error)
             return ScoreResultItem.Error(url, score_topics_result.error)
 
-        self.report_substatus('Calculate scores...')
-        
-        # topics_score_ordered : dict {topic_index: [score of topic, explanation]}
-        topics_score_ordered = collections.OrderedDict(sorted(score_topics_result.result_score.items()))
-
-        topics_score_list = list[TopicScoreItem]()
-        for score_item in score_topics_result.result_score.items():
-            score_item_topic_index = score_item[0]
-            score_item_topic_score = topics_score_ordered[score_item_topic_index][0]
-            score_item_topic_expln = topics_score_ordered[score_item_topic_index][1]
-            if score_item_topic_index not in topic_dict:
-                self.backend_params.callbacks.report_error_callback(f'Unknown topic index. JSON: {topics_score_ordered}. URL: {url}')
-                continue
+        if score_topics_result:
+            self.report_substatus('Calculate scores...')
             
-            if self.backend_params.url_words_add > 0:
-                for topic_index_by_url in topic_index_by_url_list:
-                    if  topic_index_by_url.topic_index == score_item_topic_index:
-                        # we can add url score if detected score > 0 OR we have no input for detection
-                        if score_item_topic_score > 0 or extracted_text_len == 0:
-                            original_topic_score = score_item_topic_score
-                            score_item_topic_score = score_item_topic_score + self.backend_params.url_words_add
-                            score_item_topic_expln = f'!{score_item_topic_expln}. Detected by URL: {original_topic_score:.2f}=>{score_item_topic_score:.2f}'
+            # topics_score_ordered : dict {topic_index: [score of topic, explanation]}
+            topics_score_ordered = collections.OrderedDict(sorted(score_topics_result.result_score.items()))
 
-            if self.backend_params.use_topic_priority:
-                topic_priority = topic_dict[score_item_topic_index].priority
-                if topic_priority and topic_priority > 0 and score_item_topic_score > 0:
-                    original_topic_score = score_item_topic_score
-                    score_item_topic_score = score_item_topic_score * topic_priority
-                    score_item_topic_expln = f'*{score_item_topic_expln} Priority {topic_priority}: {original_topic_score:.2f}=>{score_item_topic_score:.2f}.'
+            topics_score_list = list[TopicScoreItem]()
+            for score_item in score_topics_result.result_score.items():
+                score_item_topic_index = score_item[0]
+                score_item_topic_score = topics_score_ordered[score_item_topic_index][0]
+                score_item_topic_expln = topics_score_ordered[score_item_topic_index][1]
+                if score_item_topic_index not in topic_dict:
+                    self.backend_params.callbacks.report_error_callback(f'Unknown topic index. JSON: {topics_score_ordered}. URL: {url}')
+                    continue
+                
+                if self.backend_params.url_words_add > 0:
+                    for topic_index_by_url in topic_index_by_url_list:
+                        if  topic_index_by_url.topic_index == score_item_topic_index:
+                            # we can add url score if detected score > 0 OR we have no input for detection
+                            if score_item_topic_score > 0 or extracted_text_len == 0:
+                                original_topic_score = score_item_topic_score
+                                score_item_topic_score = score_item_topic_score + self.backend_params.url_words_add
+                                score_item_topic_expln = f'!{score_item_topic_expln}. Detected by URL: {original_topic_score:.2f}=>{score_item_topic_score:.2f}'
 
-            topics_score_list.append(
-                TopicScoreItem(
-                    topic_dict[score_item_topic_index].id,
-                    topic_dict[score_item_topic_index].name,
-                    score_item_topic_score,
-                    score_item_topic_expln
+                if self.backend_params.use_topic_priority:
+                    topic_priority = topic_dict[score_item_topic_index].priority
+                    if topic_priority and topic_priority > 0 and score_item_topic_score > 0:
+                        original_topic_score = score_item_topic_score
+                        score_item_topic_score = score_item_topic_score * topic_priority
+                        score_item_topic_expln = f'*{score_item_topic_expln} Priority {topic_priority}: {original_topic_score:.2f}=>{score_item_topic_score:.2f}.'
+
+                topics_score_list.append(
+                    TopicScoreItem(
+                        topic_dict[score_item_topic_index].id,
+                        topic_dict[score_item_topic_index].name,
+                        score_item_topic_score,
+                        score_item_topic_expln
+                    )
                 )
+
+            topics_score_list = sorted(topics_score_list, key=lambda t: t.topic_score, reverse=True)
+
+            self.report_substatus('Calculate primary and secondary topics...')
+
+            primary_item = topics_score_list[0]
+            primary_main_topic = TopicScoreItem(
+                primary_item.topic_index,
+                primary_item.topic,
+                primary_item.topic_score,
+                primary_item.explanation
             )
-
-        topics_score_list = sorted(topics_score_list, key=lambda t: t.topic_score, reverse=True)
-
-        self.report_substatus('Calculate primary and secondary topics...')
-
-        primary_item = topics_score_list[0]
-        primary_main_topic = TopicScoreItem(
-            primary_item.topic_index,
-            primary_item.topic,
-            primary_item.topic_score,
-            primary_item.explanation
-        )
-        secondary_item = topics_score_list[1]
-        secondary_main_topic = TopicScoreItem(
-            secondary_item.topic_index,
-            secondary_item.topic,
-            secondary_item.topic_score,
-            secondary_item.explanation
-        )
+            secondary_item = topics_score_list[1]
+            secondary_main_topic = TopicScoreItem(
+                secondary_item.topic_index,
+                secondary_item.topic,
+                secondary_item.topic_score,
+                secondary_item.explanation
+            )
 
         if self.backend_params.override_by_url_words and len(topic_index_by_url_list) > 0:
             topic_index_by_url = topic_index_by_url_list[0].topic_index
@@ -410,7 +421,7 @@ class BackEndCore():
             full_translated_text,
             topics_score_ordered,
             topics_by_url_info,
-            leaders_list_str,
+            all_leaders_list_str,
             senior_pmi_leaders_counter,
             False
         )
