@@ -126,7 +126,7 @@ class BulkOutput():
         if params.inc_golden_data:
             bulk_columns.extend(['Main correct', 'Primary correct', 'Secondary correct'])
 
-        bulk_columns.extend(['URL detector', 'Leaders', 'Senior leaders count'])
+        bulk_columns.extend(['URL detector', 'Leaders', 'Senior leaders count 1', 'Senior leaders count 2'])
         bulk_columns.extend(['Primary', 'Primary score'])
         if params.inc_golden_data:
             bulk_columns.extend([
@@ -173,7 +173,7 @@ class BulkOutput():
                     row.get_main_topic_secondary(),
                 ))
 
-            bulk_row.extend([row.topics_by_url_info, row.leaders_list_str, row.senior_leaders_count])
+            bulk_row.extend([row.topics_by_url_info, row.leaders_list_str, row.senior_leaders_1, row.senior_leaders_2])
 
             if row.main_topics and row.main_topics.primary:
                 bulk_row.extend([row.main_topics.primary.topic, row.main_topics.primary.topic_score]) # primary topic

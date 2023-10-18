@@ -2,6 +2,11 @@
     Classes to read from HTML per domain
 """
 
+HTML_IDS_WHITELIST = {
+    'www.pmi.com': [
+        'body_'
+    ]
+}
 
 HTML_CLASSES_WHITELIST = {
     'www.pmi.com': [

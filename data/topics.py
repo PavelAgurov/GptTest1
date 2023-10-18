@@ -28,8 +28,7 @@ TOPICS_LIST : list[TopicDefinition] = [
       4,
       "Leadership content",
       "Provides insights from company leaders, including articles written by them, interviews, quotes, while also discussing decision-making, team management, and inspiration.",
-      priority= 0,
-      url_words=['leaders-of-change']
+      priority= 0
    ),
    TopicDefinition(
       5,

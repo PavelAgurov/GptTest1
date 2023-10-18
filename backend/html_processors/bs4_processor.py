@@ -38,7 +38,12 @@ def need_to_parse_blacklist(t : Tag, html_classes_blacklist : list[str]) -> bool
                 return False
     return True
 
-def get_plain_text_bs4(html : str, html_classes_whitelist : list[str], html_classes_blacklist : list[str]) -> str:
+def get_plain_text_bs4(
+        html : str, 
+        html_classes_whitelist : list[str], 
+        html_classes_blacklist : list[str], 
+        html_ids_whitelist     : list[str]
+    ) -> str:
     """Plain text based on BS4"""
 
     logger.debug(f'html_classes_whitelist={html_classes_whitelist}')

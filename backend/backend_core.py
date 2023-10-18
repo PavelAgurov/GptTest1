@@ -20,7 +20,7 @@ from backend.bulk_output import BulkOutput, BulkOutputParams
 from backend.html_processors.bs4_processor import get_plain_text_bs4
 from backend.gold_data import get_gold_data
 from backend.tuning_manager import TuningManager
-from data.parser_html_classes import HTML_CLASSES_WHITELIST, HTML_CLASSES_BLACKLIST, EXCLUDED_SENTENSES
+from data.parser_html_classes import HTML_CLASSES_WHITELIST, HTML_CLASSES_BLACKLIST, EXCLUDED_SENTENSES, HTML_IDS_WHITELIST
 from data.fixed_topic_patterns import FIXED_TOPIC_PATTERNS_DICT
 
 logger : logging.Logger = logging.getLogger()
@@ -88,7 +88,7 @@ class BackEndCore():
     topic_manager  : TopicManager
     tuning_manager : TuningManager
 
-    PMI_COMPANY_NAMES = ['pmi', 'philip morris international', 'philip morris international (pmi)']
+    PMI_COMPANY_NAMES = ['pmi', 'philip morris', 'philip morris international', 'philip morris international (pmi)']
     AUTHOR_PATTERN    = 'Written by'
 
     def __init__(self, backend_params : BackendParams):
@@ -125,10 +125,12 @@ class BackEndCore():
 
             html_classes_whitelist = HTML_CLASSES_WHITELIST.get(domain, None)
             html_classes_blacklist = HTML_CLASSES_BLACKLIST.get(domain, None)
+            html_ids_whitelist     = HTML_IDS_WHITELIST.get(domain, None)
+            
 
             with urllib.request.urlopen(url) as f:
                 html = f.read()
-            result2 = get_plain_text_bs4(html, html_classes_whitelist, html_classes_blacklist)
+            result2 = get_plain_text_bs4(html, html_classes_whitelist, html_classes_blacklist, html_ids_whitelist)
 
         if loading_mode_bs == ReadModeHTML.PARTITION.value:
             return result1
@@ -371,16 +373,28 @@ class BackEndCore():
                     'Detected by URL'
                 )
 
-        senior_pmi_leaders_counter = len(senior_pmi_leaders)
-        logger.info(f'senior_pmi_leaders_counter={senior_pmi_leaders_counter}')
+        senior_pmi_leaders_unique_counter = len(senior_pmi_leaders)
+        senior_pmi_leaders_often4_counter = len([leader for leader in senior_pmi_leaders if leader.counter > 4])
+        
+        logger.info(f'senior_pmi_leaders_unique_counter={senior_pmi_leaders_unique_counter}')
+        logger.info(f'senior_pmi_leaders_often4_counter={senior_pmi_leaders_often4_counter}')
 
-        if self.backend_params.use_leaders and senior_pmi_leaders_counter >= 2:
+        if self.backend_params.use_leaders and senior_pmi_leaders_unique_counter >= 2:
             secondary_main_topic = primary_main_topic
             primary_main_topic = TopicScoreItem(
                 -1,
                 'Leadership content',
                 1,
                 'Detected by Leader extractor'
+            )
+
+        if self.backend_params.use_leaders and senior_pmi_leaders_often4_counter > 0:
+            secondary_main_topic = primary_main_topic
+            primary_main_topic = TopicScoreItem(
+                -1,
+                'Leadership content',
+                1,
+                'Detected by Leader extractor (1)'
             )
 
         if self.backend_params.use_leaders and len(senior_pmi_leaders) > 0:
@@ -405,6 +419,15 @@ class BackEndCore():
             if fixed_topic_pattern.secondary_topic:
                 secondary_main_topic = TopicScoreItem(-1, fixed_topic_pattern.secondary_topic, 1, 'Detected by fixed pattern')
 
+        # all scores are 0 - we can't detect anything
+        non_zero_scores = [s for s in topics_score_list if s.topic_score > 0]
+        if not non_zero_scores:
+            logger.warning("All scores are 0 - topic can't be detected")
+            if primary_main_topic and primary_main_topic.topic_index != -1:
+                primary_main_topic   = TopicScoreItem.Empty()
+            if secondary_main_topic and secondary_main_topic.topic_index != -1:
+                secondary_main_topic = TopicScoreItem.Empty()
+
         main_topics = MainTopics(primary_main_topic, secondary_main_topic)
         self.backend_params.callbacks.show_main_topics_callback(main_topics)
 
@@ -422,7 +445,8 @@ class BackEndCore():
             topics_score_ordered,
             topics_by_url_info,
             all_leaders_list_str,
-            senior_pmi_leaders_counter,
+            senior_pmi_leaders_unique_counter, 
+            senior_pmi_leaders_often4_counter,
             False
         )
 

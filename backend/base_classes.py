@@ -67,7 +67,8 @@ class ScoreResultItem:
     ordered_result_score : list
     topics_by_url_info   : str
     leaders_list_str     : str
-    senior_leaders_count : bool
+    senior_leaders_1     : int
+    senior_leaders_2     : int
     error                : str
 
     def get_main_topic_primary_item(self) -> TopicScoreItem:
