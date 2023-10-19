@@ -23,7 +23,6 @@ class RefineResult:
     summary     : str
     tokens_used : int
     error       : str
-    steps       : list[str]
 
 refine_initial_prompt_template = """\
 You are the company's press secretary.
@@ -34,14 +33,14 @@ Make sure a summary is entirely in English. Translate it into English where need
 Rewrite it if a summary exceeds 2000 characters. Do not repeat the same information.
 If the text does not contain any information to summarize say "No summary".
 
+<input_text>
+{input_text}
+</input_text>
+
 Please provide result in XML format:
 <summary>
 Summary here (not more than 2000 characters)
 </summary>
-
-<text>
-{text}
-</text>
 """
 
 refine_combine_prompt_template = """\
@@ -73,7 +72,6 @@ class RefineInitialResult:
     """Result of initial refine"""
     summary     : str
     tokens_used : int
-    steps       : list[str]
 
 @dataclass
 class RefineStepResult:
@@ -81,7 +79,6 @@ class RefineStepResult:
     new_summary : str
     tokens_used : int
     useful      : bool
-    steps       : list[str]
 
 class RefineChain():
     """Refine chain"""
@@ -92,7 +89,7 @@ class RefineChain():
 
     def __init__(self, llm : ChatOpenAI):
         if llm:
-            refine_initial_prompt = PromptTemplate(template= refine_initial_prompt_template, input_variables=["text"])
+            refine_initial_prompt = PromptTemplate(template= refine_initial_prompt_template, input_variables=["input_text"])
             self.refine_initial_chain = LLMChain(llm= llm, prompt= refine_initial_prompt)
             
             refine_combine_prompt = PromptTemplate(template= refine_combine_prompt_template, input_variables=["existing_summary", "more_context"])
@@ -129,7 +126,6 @@ class RefineChain():
 
         tokens_used = 0
         summary = ""
-        steps = []
 
         try:
             current_index = 0
@@ -138,7 +134,7 @@ class RefineChain():
 
                 # execute first step -  summary
                 if summary_step:
-                    prompt_len = self.len_function(self.refine_initial_chain.prompt.format(text = ''))
+                    prompt_len = self.len_function(self.refine_initial_chain.prompt.format(input_text = ''))
                     max_token_in_text = max_tokens - prompt_len - self.TOKEN_BUFFER
                     new_index = self.get_max_possible_index(
                         sentence_list, 
@@ -147,7 +143,6 @@ class RefineChain():
                         self.len_function
                     )
                     status = f'--- Process doc init {current_index}:{new_index} / {len(sentence_list)}'
-                    steps.append(status)
                     logger.info(status)
 
                     current_doc_list = sentence_list[current_index:new_index]
@@ -157,7 +152,6 @@ class RefineChain():
                     logger.debug(f'max_tokens={max_tokens}, prompt_len={prompt_len}, max_token_in_text={max_token_in_text}, current_doc_len={current_doc_len}')
                     refine_initial_result = self.execute_initial_refine(current_doc)
                     tokens_used += refine_initial_result.tokens_used
-                    steps.extend(refine_initial_result.steps)
                     summary = refine_initial_result.summary
 
                     time.sleep(0.1)
@@ -182,19 +176,17 @@ class RefineChain():
                     self.len_function
                 )
                 status = f'--- Process doc refine {current_index}:{new_index} / {len(sentence_list)}'
-                steps.append(status)
                 logger.info(status)
 
                 current_doc = ''.join(sentence_list[current_index:new_index])
 
                 refine_step_result = self.execute_refine_step(summary, current_doc)
                 tokens_used += refine_step_result.tokens_used
-                steps.extend(refine_step_result.steps)
                 if refine_step_result.useful:
                     if refine_step_result.new_summary:
                         summary = refine_step_result.new_summary
                     else:
-                        steps.append('ERROR: empty summary with Useful flag')
+                        logger.error('ERROR: empty summary with Useful flag')
 
                 time.sleep(0.1)
 
@@ -202,29 +194,25 @@ class RefineChain():
                 if new_index >= len(sentence_list):
                     break
             
-            return RefineResult(summary, tokens_used, None, steps)
+            return RefineResult(summary, tokens_used, None)
         except Exception as error: # pylint: disable=W0718
-            steps.append(error)
             logger.error(f'Error: {error}. Track: {traceback.format_exc()}')
-            return RefineResult(summary, tokens_used, error, steps)
+            return RefineResult(summary, tokens_used, error)
 
     def execute_initial_refine(self, document : str) -> RefineInitialResult:
         """Execute refine step"""
         tokens_used    = 0
-        steps          = list[str]()
         summary        = ''
 
-        steps.append('------- execute_initial_refine')
+        logger.info('------- execute_initial_refine')
 
         refine_initial_result  = None
         try:
             with get_openai_callback() as cb:
-                refine_initial_result = self.refine_initial_chain.run(text = document)
+                refine_initial_result = self.refine_initial_chain.run(input_text = document)
             tokens_used = cb.total_tokens
-            steps.append(refine_initial_result)
-            logger.debug(refine_initial_result)
+            logger.debug(f'refine_initial_result={refine_initial_result}')
         except Exception as error: # pylint: disable=W0718
-            steps.append(error)
             logger.error(error)
 
         if refine_initial_result:
@@ -232,26 +220,24 @@ class RefineChain():
             summary_str = summary_xml["summary"].strip()
             if "no summary" not in summary_str.lower():
                 summary = summary_str
-        return RefineInitialResult(summary, tokens_used, steps)
+        return RefineInitialResult(summary, tokens_used)
 
     def execute_refine_step(self, existing_summary : str, more_context : str) -> RefineStepResult:
         """Execute refine step"""
         tokens_used    = 0
         refined_useful = False
-        steps          = list[str]()
         summary        = ''
 
-        steps.append('------- execute_refine_step')
+        logger.info('------- execute_refine_step')
 
         refine_step_result  = None
         try:
             with get_openai_callback() as cb:
                 refine_step_result = self.refine_combine_chain.run(existing_summary = existing_summary, more_context = more_context)
             tokens_used = cb.total_tokens
-            steps.append(refine_step_result)
             logger.debug(refine_step_result)
         except Exception as error: # pylint: disable=W0718
-            steps.append(error)
+            logger.error(error)
 
         if refine_step_result:
             refined_xml = parse_llm_xml(refine_step_result, ["not_useful", "refined_summary"])
@@ -260,6 +246,6 @@ class RefineChain():
             if refined_useful:
                 summary = refined_summary
 
-        return RefineStepResult(summary, tokens_used, refined_useful, steps)
+        return RefineStepResult(summary, tokens_used, refined_useful)
 
 

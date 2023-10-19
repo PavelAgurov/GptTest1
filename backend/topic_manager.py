@@ -28,15 +28,12 @@ class TopicManager():
     """Topic manager"""
 
     topic_list : list[TopicDefinition]
-    topic_dict : dict[int, TopicDefinition]
     url_words  : dict[str, TopicPriority]
 
     __DISK_FOLDER = '.topics'
     __TOPIC_FILE = 'topics.json'
 
     def __init__(self):
-        self.topic_dict = {t.id  : t for t in TOPICS_LIST}
-        
         self.url_words = dict[str, int]()
         for topic in TOPICS_LIST:
             if not topic.url_words:
@@ -52,10 +49,6 @@ class TopicManager():
     def get_topic_list(self) -> list[TopicDefinition]:
         """Get topic list"""
         return self.topic_list
-    
-    def get_topic_dict(self) -> dict[int, TopicDefinition]:
-        """Return topic dict [topic_id, TopicDefinition]"""
-        return self.topic_dict
 
     def get_topics_by_url(self, url : str) -> list[TopicDetectedByURL]:
         """Check if URL is relevant to some topic"""

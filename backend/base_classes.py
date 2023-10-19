@@ -16,6 +16,7 @@ class TopicDefinition:
     description : str
     url_words : Optional[list[str]] = None
     priority  : Optional[int] = 0
+    redirect  : Optional[str] = None
 
     def get_url_words_str(self) -> str:
         """Get url words as string"""
@@ -71,49 +72,25 @@ class ScoreResultItem:
     senior_leaders_2     : int
     error                : str
 
-    def get_main_topic_primary_item(self) -> TopicScoreItem:
-        """Get primary topic if exists"""
-        if not self.main_topics:
-            return None
-        return self.main_topics.primary
-
-    def get_main_topic_secondary_item(self) -> TopicScoreItem:
-        """Get secondary topic if exists"""
-        if not self.main_topics:
-            return None
-        return self.main_topics.secondary
-
-    def get_main_topic_primary(self) -> str:
-        """Get primary topic if exists"""
-        if not self.main_topics or not self.main_topics.primary:
-            return ''
-        return self.main_topics.primary.topic
-
-    def get_main_topic_secondary(self) -> str:
-        """Get secondary topic if exists"""
-        if not self.main_topics or not self.main_topics.secondary:
-            return ''
-        return self.main_topics.secondary.topic
-
     @classmethod
     def Empty(cls, url : str, input_text_len : int = 0):
         """Empty result"""
-        return ScoreResultItem(url, input_text_len, 0, '', 0, None, '', None, None, None, False, None)
+        return ScoreResultItem(url, input_text_len, 0, '', 0, None, '', None, None, None, 0, 0, None)
     
     @classmethod
     def PageNotFound(cls, url : str):
         """Page not found object"""
-        return ScoreResultItem(url, 0, 0, '', 0, None, '', None, None, None, False, "Page not found")
+        return ScoreResultItem(url, 0, 0, '', 0, None, '', None, None, None, 0, 0, "Page not found")
 
     @classmethod
     def Error(cls, url : str, error : str):
         """Error"""
-        return ScoreResultItem(url, 0, 0, '', 0, None, 'ERROR', None, None, None, False, error)
+        return ScoreResultItem(url, 0, 0, '', 0, None, 'ERROR', None, None, None, 0, 0, error)
 
     @classmethod
     def Fixed(cls, url : str, main_topics : MainTopics):
         """Fixed topics"""
-        return ScoreResultItem(url, 0, 0, '', 0, main_topics, '', None, None, None, False, None)
+        return ScoreResultItem(url, 0, 0, '', 0, main_topics, '', None, None, None, 0, 0, None)
 
 @dataclass
 class FixedTopicPattern:

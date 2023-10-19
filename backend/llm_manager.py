@@ -196,10 +196,6 @@ class LLMManager():
         text = self.clean_up_text(text)
 
         refine_result = RefineChain(self.llm_summary).refine(text, self.MAX_MODEL_TOKENS - self.MAX_TOKENS_SUMMARY)
-
-        for step in refine_result.steps:
-            logger.debug(step)
-        logger.debug('-------------------------------------------------')
         summary = ""
         if not refine_result.error:
             summary = refine_result.summary

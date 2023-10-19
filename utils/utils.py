@@ -25,9 +25,13 @@ def parse_llm_xml(text : str, variables : list[str]) -> dict[str, str]:
         start_var_name = f'<{var_name}>'
         start_index = text.find(start_var_name)
         if start_index == -1:
+            logger.error(f'LLM xml has no open tag variable: {var_name}')
+            if len(variables) == 1:
+                result[var_name] = text
             continue
         end_index = text.find(f'</{var_name}>')
         if end_index == -1:
+            logger.error(f'LLM xml has no close tag variable: {var_name}')
             # hack - if we have only one tag and it's not closed - guess that it's full text
             if len(variables) == 1:
                 var_value_fixed = text[start_index + len(start_var_name):]

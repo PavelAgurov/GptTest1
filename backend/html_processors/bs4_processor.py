@@ -6,6 +6,8 @@
 from bs4 import BeautifulSoup, Tag
 import logging
 
+from data.excluded_text_patterns import is_excluded_sentense
+
 logger : logging.Logger = logging.getLogger()
 
 def need_to_parse_whitelist(t : Tag, html_classes_whitelist : list[str]) -> bool:
@@ -80,4 +82,7 @@ def get_plain_text_bs4(
             if len(words) < 2:
                 continue
             paragraph_list.append(line)
+
+    paragraph_list = [p for p in paragraph_list if not is_excluded_sentense(p)]
+
     return "\n\n".join(paragraph_list)

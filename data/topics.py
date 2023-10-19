@@ -66,25 +66,25 @@ TOPICS_LIST : list[TopicDefinition] = [
       10,
       "Regulation",
       "Regulations governing smoke-free products. Risk-based regulation and smoke-free promotion. Respect for the law. Work to prevent illegal trade. Comply with regulations. Extensive restrictions, including outright bans.",
-      ["regulators", "regulation"],
+      ["regulators", "regulation", "legal-document"],
       priority= 2.5
    ),
    TopicDefinition(
       11,
       "Jobs",
       "Highlights job opportunities and the benefits of working at PMI. Discusses the company's commitment to workplace flexibility and equal pay.",
-      ["job-opportunities", "job-remotely", "job-details", "job-interview", "career"]
+      ["job-opportunities", "job-remotely", "job-details", "job-interview"]
    ),
    TopicDefinition(
       12,
       "Partnership and Engagement",
       "Discusses PMI's collaborative efforts, alliances, and community engagement. Highlights the company's positive impact through meaningful engagement with various external entities."
    ),
-   # TopicDefinition(
-   #    13,
-   #    "Leadership content",
-   #    "Any content that mentions at least twice senior management or top managers of PMI (including SEO, COO, SVP, VP etc.) OR content created by them (as indicated by quotes or the use of a first person point of view).",
-   #    priority= 2.5,
-   #    url_words=["leaders"]
-   # )
+   TopicDefinition(
+      13,
+      "Career",
+      "Career advice and discussions about career",
+      ["career", "karriere", "carreras", "carrieres"],
+      redirect = "Jobs"
+   ),
 ]

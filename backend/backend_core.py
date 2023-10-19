@@ -186,6 +186,20 @@ class BackEndCore():
 
         return ScoreResultItem.Fixed(url, fixed_main_topics)
 
+    def is_equal_topics(self, topic_dict : dict[str, TopicDefinition], topic1 : str, topic2 : str) -> bool:
+        """True if topics are the same with validation by redirect"""
+        topic1_name = topic1.lower()
+        topic1_item = topic_dict[topic1_name]
+        if topic1_item.redirect:
+            topic1_name = topic1_item.redirect.lower()
+
+        topic2_name = topic2.lower()
+        topic2_item = topic_dict[topic2_name]
+        if topic2_item.redirect:
+            topic2_name = topic2_item.redirect.lower()
+
+        return topic1_name == topic2_name
+
 
     def run_one(self, url : str, read_mode : ReadModeHTML, only_read_html : bool) -> ScoreResultItem:
         """"Run process for one URL"""
@@ -193,7 +207,8 @@ class BackEndCore():
         if self.backend_params.site_map_only:
             return ScoreResultItem.Empty(url)
 
-        topic_dict : dict[int, TopicDefinition] = self.topic_manager.get_topic_dict()
+        topic_dict_int = {t.id : t for t in self.topic_manager.get_topic_list()}
+        topic_dict_str = {t.name.lower() : t for t in self.topic_manager.get_topic_list()}
 
         # try to find fixed pattern for given url
         fixed_topic_pattern : FixedTopicPattern = None
@@ -254,7 +269,7 @@ class BackEndCore():
         # topic detected by URL, sorted by detected position
         topic_index_by_url_list : list[TopicDetectedByURL] = self.topic_manager.get_topics_by_url(url)
         logger.debug(f'topic_index_by_url_list={topic_index_by_url_list}')
-        topics_by_url_info = ','.join([f'{topic_dict[t.topic_index].name}[{t.url_position}]' for t in topic_index_by_url_list])
+        topics_by_url_info = ','.join([f'{topic_dict_int[t.topic_index].name}[{t.url_position}]' for t in topic_index_by_url_list])
 
         # build summary
         summary = input_text
@@ -296,7 +311,7 @@ class BackEndCore():
             self.report_substatus('')
         else:
             logger.warning(f'Summary is empty {url}')
-            empty_result_score = {t[0]: (0, None) for t in topic_dict.items()}
+            empty_result_score = {t[0]: (0, None) for t in topic_dict_int.items()}
             score_topics_result = ScoreTopicsResult(0, None, None, empty_result_score)
 
         if score_topics_result and score_topics_result.error:
@@ -314,21 +329,19 @@ class BackEndCore():
                 score_item_topic_index = score_item[0]
                 score_item_topic_score = topics_score_ordered[score_item_topic_index][0]
                 score_item_topic_expln = topics_score_ordered[score_item_topic_index][1]
-                if score_item_topic_index not in topic_dict:
+                if score_item_topic_index not in topic_dict_int:
                     self.backend_params.callbacks.report_error_callback(f'Unknown topic index. JSON: {topics_score_ordered}. URL: {url}')
                     continue
                 
                 if self.backend_params.url_words_add > 0:
                     for topic_index_by_url in topic_index_by_url_list:
                         if  topic_index_by_url.topic_index == score_item_topic_index:
-                            # we can add url score if detected score > 0 OR we have no input for detection
-                            if score_item_topic_score > 0 or extracted_text_len == 0:
-                                original_topic_score = score_item_topic_score
-                                score_item_topic_score = score_item_topic_score + self.backend_params.url_words_add
-                                score_item_topic_expln = f'!{score_item_topic_expln}. Detected by URL: {original_topic_score:.2f}=>{score_item_topic_score:.2f}'
+                            original_topic_score = score_item_topic_score
+                            score_item_topic_score = score_item_topic_score + self.backend_params.url_words_add
+                            score_item_topic_expln = f'!{score_item_topic_expln}. Detected by URL: {original_topic_score:.2f}=>{score_item_topic_score:.2f}'
 
                 if self.backend_params.use_topic_priority:
-                    topic_priority = topic_dict[score_item_topic_index].priority
+                    topic_priority = topic_dict_int[score_item_topic_index].priority
                     if topic_priority and topic_priority > 0 and score_item_topic_score > 0:
                         original_topic_score = score_item_topic_score
                         score_item_topic_score = score_item_topic_score * topic_priority
@@ -336,8 +349,8 @@ class BackEndCore():
 
                 topics_score_list.append(
                     TopicScoreItem(
-                        topic_dict[score_item_topic_index].id,
-                        topic_dict[score_item_topic_index].name,
+                        topic_dict_int[score_item_topic_index].id,
+                        topic_dict_int[score_item_topic_index].name,
                         score_item_topic_score,
                         score_item_topic_expln
                     )
@@ -368,7 +381,7 @@ class BackEndCore():
                 secondary_main_topic = primary_main_topic
                 primary_main_topic = TopicScoreItem(
                     topic_index_by_url,
-                    topic_dict[topic_index_by_url].name,
+                    topic_dict_int[topic_index_by_url].name,
                     1,
                     'Detected by URL'
                 )
@@ -418,6 +431,17 @@ class BackEndCore():
                 primary_main_topic   = TopicScoreItem(-1, fixed_topic_pattern.primary_topic, 1, 'Detected by fixed pattern')
             if fixed_topic_pattern.secondary_topic:
                 secondary_main_topic = TopicScoreItem(-1, fixed_topic_pattern.secondary_topic, 1, 'Detected by fixed pattern')
+
+
+        # if primary == secondary - find another one by list
+        if self.is_equal_topics(topic_dict_str, primary_main_topic.topic, secondary_main_topic.topic) and len(topics_score_list) >= 2:
+            secondary_item = topics_score_list[2]
+            secondary_main_topic = TopicScoreItem(
+                secondary_item.topic_index,
+                secondary_item.topic,
+                secondary_item.topic_score,
+                secondary_item.explanation
+            )
 
         # all scores are 0 - we can't detect anything
         non_zero_scores = [s for s in topics_score_list if s.topic_score > 0]

@@ -4,10 +4,13 @@
 
 import pandas as pd
 from dataclasses import dataclass
+import logging
 
 from backend.base_classes import ScoreResultItem, TopicDefinition
 from backend.gold_data import GoldenData
 from utils.utils import str2lower
+
+logger : logging.Logger = logging.getLogger()
 
 @dataclass
 class BulkOutputParams:
@@ -86,7 +89,6 @@ class BulkOutput():
 
         golden_array = set([str2lower(golden_data.primary_topic, ''), str2lower(golden_data.secondary_topic, '')])
         main_array   = set([str2lower(main_topic_primary, '')       , str2lower(main_topic_secondary, '')       ])
-        
         main_score = 0
         intersection_len = len(golden_array.intersection(main_array))
         if intersection_len == 2:
@@ -127,7 +129,7 @@ class BulkOutput():
             bulk_columns.extend(['Main correct', 'Primary correct', 'Secondary correct'])
 
         bulk_columns.extend(['URL detector', 'Leaders', 'Senior leaders count 1', 'Senior leaders count 2'])
-        bulk_columns.extend(['Primary', 'Primary score'])
+        bulk_columns.extend(['Primary final', 'Primary', 'Primary score'])
         if params.inc_golden_data:
             bulk_columns.extend([
                 'Golden Primary', 
@@ -137,7 +139,7 @@ class BulkOutput():
             ])
         if params.inc_explanation:
             bulk_columns.extend(['Primary explanation'])
-        bulk_columns.extend(['Secondary', 'Secondary score'])
+        bulk_columns.extend(['Secondary final', 'Secondary', 'Secondary score'])
         if params.inc_golden_data:
             bulk_columns.extend([
                 'Golden Secondary', 
@@ -165,20 +167,44 @@ class BulkOutput():
             bulk_row = []
             bulk_row.extend([row.current_url, row.input_text_len, row.extracted_text_len, row.translated_lang, row.transpated_text_len])
 
+            main_topic_primary_final = ''
+            if row.main_topics and row.main_topics.primary:
+                main_topic_primary_final = row.main_topics.primary.topic
+
+            if main_topic_primary_final:
+                main_topic_primary_topic = topic_dict[main_topic_primary_final.lower()]
+                if main_topic_primary_topic.redirect:
+                    primary_redirect = main_topic_primary_topic.redirect
+                    if primary_redirect.lower() not in topic_dict:
+                        logger.error(f'Incorrect redirect for {main_topic_primary_final}: {primary_redirect}')
+                    main_topic_primary_final = primary_redirect
+
+            main_topic_secondary_final = ''
+            if row.main_topics and row.main_topics.secondary:
+                main_topic_secondary_final = row.main_topics.secondary.topic
+
+            if main_topic_secondary_final:
+                main_topic_secondary_topic = topic_dict[main_topic_secondary_final.lower()]
+                if main_topic_secondary_topic.redirect:
+                    secondary_redirect = main_topic_secondary_topic.redirect
+                    if secondary_redirect.lower() not in topic_dict:
+                        logger.error(f'Incorrect redirect for {main_topic_secondary_final}: {secondary_redirect}')
+                    main_topic_secondary_final = secondary_redirect
+
             if params.inc_golden_data:
                 bulk_row.extend(self.get_main_score(
                     row.current_url,
                     golden_data_dict,
-                    row.get_main_topic_primary(),
-                    row.get_main_topic_secondary(),
+                    main_topic_primary_final,
+                    main_topic_secondary_final,
                 ))
 
             bulk_row.extend([row.topics_by_url_info, row.leaders_list_str, row.senior_leaders_1, row.senior_leaders_2])
 
             if row.main_topics and row.main_topics.primary:
-                bulk_row.extend([row.main_topics.primary.topic, row.main_topics.primary.topic_score]) # primary topic
+                bulk_row.extend([main_topic_primary_final, row.main_topics.primary.topic, row.main_topics.primary.topic_score]) # primary topic
             else:
-                bulk_row.extend([None, None])
+                bulk_row.extend([None, None, None])
             
             score_data = row.ordered_result_score
 
@@ -198,9 +224,9 @@ class BulkOutput():
                     bulk_row.extend([None])
 
             if row.main_topics and row.main_topics.secondary:
-                bulk_row.extend([row.main_topics.secondary.topic, row.main_topics.secondary.topic_score]) # secondary topic
+                bulk_row.extend([main_topic_secondary_final, row.main_topics.secondary.topic, row.main_topics.secondary.topic_score]) # secondary topic
             else:
-                bulk_row.extend([None, None])
+                bulk_row.extend([None, None, None])
 
             if params.inc_golden_data:
                 bulk_row.extend(self.get_golden_data_array(
