@@ -78,7 +78,9 @@ TOPICS_LIST : list[TopicDefinition] = [
    TopicDefinition(
       12,
       "Partnership and Engagement",
-      "Discusses PMI's collaborative efforts, alliances, and community engagement. Highlights the company's positive impact through meaningful engagement with various external entities."
+      "PMI partnership with organizations and community engagement, relationship with suppliers.",
+      ["suppliers"],
+      priority= 2.5
    ),
    TopicDefinition(
       13,

@@ -320,7 +320,7 @@ def show_bulk_data_from_session():
 def convert_df_to_csv(df_csv : pd.DataFrame):
     """Convert DataFrame into csv and cahce it"""
     # IMPORTANT: Cache the conversion to prevent computation on every rerun
-    return df_csv.to_csv().encode('utf-8')
+    return df_csv.to_csv(index=False).encode('utf-8')
 
 all_secrets = {s[0]:s[1] for s in st.secrets.items()}
 
