@@ -17,7 +17,8 @@ HTML_CLASSES_WHITELIST = {
         'written-by',
         'detail-content', 
         'press-release-',
-        'content--description'
+        'content--description',
+        'basic-video-transcript--content'
     ]
 }
 
