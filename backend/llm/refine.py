@@ -218,8 +218,13 @@ class RefineChain():
         if refine_initial_result:
             summary_xml = parse_llm_xml(refine_initial_result, ["summary"])
             summary_str = summary_xml["summary"].strip()
-            if "no summary" not in summary_str.lower():
-                summary = summary_str
+            
+            if "No summary" in summary_str:
+                if len(summary_str) < 20: # fix hallucination - in some cases model adds this wording even in normal summary
+                    return RefineInitialResult('', tokens_used)
+                logger.warning('Wording <No summary> in real summary.')
+                summary_str = summary_str.replace("No summary", '')
+            summary = summary_str
         return RefineInitialResult(summary, tokens_used)
 
     def execute_refine_step(self, existing_summary : str, more_context : str) -> RefineStepResult:

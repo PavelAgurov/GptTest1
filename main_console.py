@@ -9,6 +9,8 @@ import logging
 import argparse
 import toml
 import traceback
+from datetime import datetime
+import pandas as pd
 
 from backend.backend_core import BackEndCore, BackendParams, BackendCallbacks, ReadModeHTML
 from backend.base_classes import ScoreResultItem, MainTopics, TopicScoreItem
@@ -27,7 +29,7 @@ def report_status(status_str : str):
     if status_str:
         logger.info(status_str)
         with open('main_console.log', 'at', encoding="utf-8") as f:
-            f.write(status_str + '\n')
+            f.write(f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")} {status_str}\n')
 
 def report_substatus(substatus_str : str):
     """Show second line of status"""
@@ -71,7 +73,7 @@ def show_topics_score_callback(result_list : list[TopicScoreItem]): # pylint: di
     """Show topic score"""
     pass  # pylint: disable=W0107
 
-def run(input_file : str, output_folder : str, all_secrets : dict[str, any], env_openai_key : str):
+def run(input_file : str, output_file : str, all_secrets : dict[str, any], env_openai_key : str):
     """Main run cycle"""
 
     logger.info(f'Read URLs from file {input_file}')
@@ -151,13 +153,6 @@ def run(input_file : str, output_folder : str, all_secrets : dict[str, any], env
         logger.error(f'Result data for package {input_file} is empty')
         sys.exit()
 
-    output_file = f'{input_file}{OUTPUT_EXTENSION}'
-    if output_folder:
-        output_file = os.path.join(output_folder, os.path.basename(output_file))
-
-    if not output_file.endswith(OUTPUT_EXTENSION):
-        output_file = f'{output_file}{OUTPUT_EXTENSION}'
-
     try:
         logger.info(f'Saving output {output_file}')
         df_bulk_result.data.to_excel(output_file, index= False)
@@ -174,12 +169,15 @@ def main():
     parser.add_argument("-p", "--Package", help = "Package file name (txt)", required=False)
     parser.add_argument("-o", "--Output", help = "Output folder name", required=False)
     parser.add_argument("-c", "--Config", help = "Config file (toml)", required=False)
+    parser.add_argument("-j", "--Combine", help = f"Combine package result into one Excel ({OUTPUT_EXTENSION})", required=False)
     args = parser.parse_args()
 
     if not args.Input and not args.Package:
         parser.error('--Input or --Package argument is required')
     if args.Input and args.Package:
         parser.error('Only one --Input or --Package argument is allowed')
+    if args.Combine and not args.Package:
+        parser.error('--Combine is allowed only for Package')
 
     input_file_list = []
     if args.Input:
@@ -226,6 +224,7 @@ def main():
 
 
     logger.info('Start processing...')
+    output_file_list = []
     for index, input_file in enumerate(input_file_list):
         if not input_file:
             continue
@@ -242,10 +241,36 @@ def main():
                 if not os.path.dirname(input_file):
                     input_file = os.path.join(os.path.dirname(args.Package), input_file)
 
-            run(input_file, output_folder, config, env_openai_key)
+            output_file = f'{input_file}{OUTPUT_EXTENSION}'
+            if output_folder:
+                output_file = os.path.join(output_folder, os.path.basename(output_file))
+
+            if not output_file.endswith(OUTPUT_EXTENSION):
+                output_file = f'{output_file}{OUTPUT_EXTENSION}'
+
+            output_file_list.append(output_file)
+            if os.path.isfile(output_file):
+                logger.warning(f'Output file {output_file} already exists. Skip input.')
+                continue
+
+            run(input_file, output_file, config, env_openai_key)
         except Exception as run_error: # pylint: disable=W0718
             logger.error(run_error)
             logger.error(traceback.format_exc())
+
+    combine_file_name = args.Combine
+    if combine_file_name and args.Package:
+        if not combine_file_name.endswith(OUTPUT_EXTENSION):
+            combine_file_name = f'{combine_file_name}{OUTPUT_EXTENSION}'
+        if len(output_file_list) > 0:
+            logger.info(f'Merge output in one file {combine_file_name}...')
+            full_data = [pd.read_excel(output_file) for output_file in output_file_list if os.path.isfile(output_file)]
+            full_data_pd = pd.concat(full_data)
+            full_data_pd.to_excel(combine_file_name, index=False)
+            logger.info(f'Saved output file {combine_file_name}.')
+        else:
+            logger.warning('No output to merge')
+
 
 if __name__ == '__main__':
     total_used_tokens = 0

@@ -353,6 +353,8 @@ class LLMManager():
                     continue
                 if not is_person:
                     continue
+                if not counter or counter == 0:
+                    continue
                 result.append(LeaderRecord(leader_name, company, title, senior, counter))
         except Exception as error: # pylint: disable=W0718
             logger.error(f'Error: {error}. JSON: {extracted_leaders}. URL: {url}.')
