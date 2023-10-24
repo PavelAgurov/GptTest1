@@ -23,7 +23,12 @@ HTML_CLASSES_WHITELIST = {
 }
 
 HTML_CLASSES_BLACKLIST = {
-    'www.unsmoke.co.za': ['-footer', '-header', 'cmp-nav_', '-banner', 'age-gate--active']
+    'www.unsmoke.co.za': [
+        '-footer', '-header', 'cmp-nav_', '-banner', 'age-gate--active'
+    ],
+    'www.unsmokeyourworld.com':[
+        '-footer', '-header', 'cmp-nav_', '-banner', 'age-gate--active'
+    ]
 }
 
 EXCLUDED_SENTENSES = [

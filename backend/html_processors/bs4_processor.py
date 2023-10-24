@@ -34,6 +34,12 @@ def need_to_parse_blacklist(t : Tag, html_classes_blacklist : list[str]) -> bool
         return False
     
     tag_classes = t.attrs['class']
+    parent = t.parent
+    while parent:
+        if isinstance(t.parent, Tag) and parent.attrs and 'class' in parent.attrs:
+            tag_classes += parent.attrs['class']
+        parent = parent.parent
+
     for html_class in html_classes_blacklist:
         for tag_classe in tag_classes:
             if html_class in tag_classe: # this class shold NOT be parsed
@@ -52,10 +58,15 @@ def get_plain_text_bs4(
     logger.debug(f'html_classes_blacklist={html_classes_blacklist}')
 
     soup = BeautifulSoup(html, 'html.parser')
-    texts = soup.findAll(['p', 'div', 'blockquote'])
+    texts = soup.findAll(['p', 'div', 'blockquote', 'h1', 'h2', 'h3','h4'])
     paragraph_list = []
     for t in texts:
         if not t:
+            continue
+
+        # we need heades any case
+        if t.name in ['h1', 'h2', 'h3','h4']:
+            paragraph_list.append(t.get_text(separator=" ", strip=True).strip())
             continue
             
         # limitation defined
@@ -67,6 +78,7 @@ def get_plain_text_bs4(
         # limitation defined
         if html_classes_blacklist: 
             if not need_to_parse_blacklist(t, html_classes_blacklist):
+                t.replaceWithChildren()
                 continue
 
         # no limitation - try to extract what possible
@@ -81,7 +93,9 @@ def get_plain_text_bs4(
             words = line.split(' ')
             if len(words) < 2:
                 continue
-            paragraph_list.append(line)
+            # exclude duplicate lines
+            if len(paragraph_list) == 0 or paragraph_list[-1] != line:
+                paragraph_list.append(line)
 
     paragraph_list = [p for p in paragraph_list if not is_excluded_sentense(p)]
 
